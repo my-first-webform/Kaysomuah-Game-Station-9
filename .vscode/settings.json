@@ -10,6 +10,7 @@
 		"scripts/test-integration.sh": true,
 	},
 	"chat.viewSessions.enabled": true,
+	"chat.editing.explainChanges.enabled": true,
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,
@@ -23,11 +24,9 @@
 		"files.insertFinalNewline": false
 	},
 	"[typescript]": {
-		"editor.defaultFormatter": "vscode.typescript-language-features",
 		"editor.formatOnSave": true
 	},
 	"[javascript]": {
-		"editor.defaultFormatter": "vscode.typescript-language-features",
 		"editor.formatOnSave": true
 	},
 	"[rust]": {

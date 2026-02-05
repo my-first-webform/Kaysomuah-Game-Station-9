@@ -103,7 +103,8 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 		this.setState(State.CheckingForUpdates(explicit));
 
-		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background: !explicit });
+		const background = !explicit && !this.shouldDisableProgressiveReleases();
+		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background });
 
 		if (!url) {
 			return;
@@ -117,7 +118,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		this.setState(State.Downloading(this.state.explicit, this._overwrite));
+		this.setState(State.Downloading(this.state.type === StateType.Overwriting ? this.state.update : undefined, this.state.explicit, this._overwrite));
 	}
 
 	private onUpdateDownloaded(update: IUpdate): void {

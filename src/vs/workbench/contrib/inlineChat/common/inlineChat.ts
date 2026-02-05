@@ -19,7 +19,7 @@ export const enum InlineChatConfigKeys {
 	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
-	PersistModelChoice = 'inlineChat.persistModelChoice',
+	DefaultModel = 'inlineChat.defaultModel',
 	Affordance = 'inlineChat.affordance',
 	RenderMode = 'inlineChat.renderMode',
 }
@@ -55,14 +55,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				mode: 'startup'
 			}
 		},
-		[InlineChatConfigKeys.PersistModelChoice]: {
-			description: localize('persistModelChoice', "Whether to persist the selected language model choice across inline chat sessions. The default is not to persist and to use the vendor's default model for inline chat because that yields the best experience."),
-			default: false,
-			type: 'boolean',
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[InlineChatConfigKeys.Affordance]: {
 			description: localize('affordance', "Controls whether an inline chat affordance is shown when text is selected."),
 			default: 'off',
@@ -73,6 +65,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('affordance.gutter', "Show an affordance in the gutter."),
 				localize('affordance.editor', "Show an affordance in the editor at the cursor position."),
 			],
+			experiment: {
+				mode: 'auto'
+			},
 			tags: ['experimental']
 		},
 		[InlineChatConfigKeys.RenderMode]: {
@@ -84,6 +79,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('renderMode.zone', "Render inline chat as a zone widget below the current line."),
 				localize('renderMode.hover', "Render inline chat as a hover overlay."),
 			],
+			experiment: {
+				mode: 'auto'
+			},
 			tags: ['experimental']
 		}
 	}

@@ -33,7 +33,9 @@ import { IChatRequestToolEntry } from '../../common/attachments/chatVariableEntr
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
-import { IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { CodeAction, CodeActionList, Command, NewSymbolName, NewSymbolNameTriggerKind } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -48,9 +50,6 @@ import { ChatSetupController } from './chatSetupController.js';
 import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IOutputService } from '../../../../services/output/common/output.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 
@@ -68,22 +67,28 @@ const ToolsAgentContextKey = ContextKeyExpr.and(
 
 export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
-	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatModeKind | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
+	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatModeKind, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
+			let description;
+			if (mode === ChatModeKind.Ask) {
+				description = ChatMode.Ask.description.get();
+			} else if (mode === ChatModeKind.Edit) {
+				description = ChatMode.Edit.description.get();
+			} else {
+				description = ChatMode.Agent.description.get();
+			}
+
 			let id: string;
-			let description = ChatMode.Ask.description.get();
 			switch (location) {
 				case ChatAgentLocation.Chat:
 					if (mode === ChatModeKind.Ask) {
 						id = 'setup.chat';
 					} else if (mode === ChatModeKind.Edit) {
 						id = 'setup.edits';
-						description = ChatMode.Edit.description.get();
 					} else {
 						id = 'setup.agent';
-						description = ChatMode.Agent.description.get();
 					}
 					break;
 				case ChatAgentLocation.Terminal:
@@ -108,15 +113,15 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			const disposables = new DisposableStore();
 
 			// Register VSCode agent
-			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Chat, undefined, context, controller);
+			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(vscodeDisposable);
 
 			// Register workspace agent
-			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Chat, undefined, context, controller);
+			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(workspaceDisposable);
 
 			// Register terminal agent
-			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Chat, undefined, context, controller);
+			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(terminalDisposable);
 
 			// Register tools
@@ -136,14 +141,14 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		});
 	}
 
-	private static doRegisterAgent(instantiationService: IInstantiationService, chatAgentService: IChatAgentService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatModeKind | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
+	private static doRegisterAgent(instantiationService: IInstantiationService, chatAgentService: IChatAgentService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatModeKind, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		const disposables = new DisposableStore();
 		disposables.add(chatAgentService.registerAgent(id, {
 			id,
 			name,
 			isDefault,
 			isCore: true,
-			modes: mode ? [mode] : [ChatModeKind.Ask],
+			modes: [mode],
 			when: mode === ChatModeKind.Agent ? ToolsAgentContextKey?.serialize() : undefined,
 			slashCommands: [],
 			disambiguation: [],
@@ -169,7 +174,6 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
 	private static readonly CHAT_RETRY_COMMAND_ID = 'workbench.action.chat.retrySetup';
-	private static readonly CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID = 'workbench.action.chat.reportIssueWithOutput';
 
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
@@ -186,6 +190,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 
@@ -193,50 +198,6 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private registerCommands(): void {
-
-		// Report issue with output command
-		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID, async accessor => {
-			const outputService = accessor.get(IOutputService);
-			const textModelService = accessor.get(ITextModelService);
-			const issueService = accessor.get(IWorkbenchIssueService);
-			const logService = accessor.get(ILogService);
-
-			let outputData = '';
-			let channelName = '';
-
-			let channel = outputService.getChannel(defaultChat.outputChannelId);
-			if (channel) {
-				channelName = defaultChat.outputChannelId;
-			} else {
-				logService.warn(`[chat setup] Output channel '${defaultChat.outputChannelId}' not found, falling back to Window output channel`);
-				channel = outputService.getChannel('rendererLog');
-				channelName = 'Window';
-			}
-
-			if (channel) {
-				try {
-					const model = await textModelService.createModelReference(channel.uri);
-					try {
-						const rawOutput = model.object.textEditorModel.getValue();
-						outputData = `<details>\n<summary>GitHub Copilot Chat Output (${channelName})</summary>\n\n\`\`\`\n${rawOutput}\n\`\`\`\n</details>`;
-						logService.info(`[chat setup] Retrieved ${rawOutput.length} characters from ${channelName} output channel`);
-					} finally {
-						model.dispose();
-					}
-				} catch (error) {
-					logService.error(`[chat setup] Failed to retrieve output channel content: ${error}`);
-				}
-			} else {
-				logService.warn(`[chat setup] No output channel available`);
-			}
-
-			await issueService.openReporter({
-				extensionId: defaultChat.chatExtensionId,
-				issueTitle: 'Chat took too long to get ready',
-				issueBody: 'Chat took too long to get ready',
-				data: outputData || localize('chatOutputChannelUnavailable', "GitHub Copilot Chat output channel not available. Please ensure the GitHub Copilot Chat extension is active and try again. If the issue persists, you can manually include relevant information from the Output panel (View > Output > GitHub Copilot Chat).")
-			});
-		}));
 
 		// Retry chat command
 		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_RETRY_COMMAND_ID, async (accessor, sessionResource: URI) => {
@@ -379,10 +340,39 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled. Click restart to try again if this issue persists.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
 					}
 
+					// Compute language model diagnostic info
+					const languageModelIds = languageModelsService.getLanguageModelIds();
+					let languageModelDefaultCount = 0;
+					for (const id of languageModelIds) {
+						const model = languageModelsService.lookupLanguageModel(id);
+						if (model?.isDefaultForLocation[ChatAgentLocation.Chat]) {
+							languageModelDefaultCount++;
+						}
+					}
+
+					// Compute agent diagnostic info
+					const defaultAgent = chatAgentService.getDefaultAgent(this.location, modeInfo?.kind);
+					const agentHasDefault = !!defaultAgent;
+					const agentDefaultIsCore = defaultAgent?.isCore ?? false;
+					const contributedDefaultAgent = chatAgentService.getContributedDefaultAgent(this.location);
+					const agentHasContributedDefault = !!contributedDefaultAgent;
+					const agentContributedDefaultIsCore = contributedDefaultAgent?.isCore ?? false;
+					const agentActivatedCount = chatAgentService.getActivatedAgents().length;
+
 					this.logService.warn(warningMessage, {
 						agentActivated,
 						agentReady,
+						agentHasDefault,
+						agentDefaultIsCore,
+						agentHasContributedDefault,
+						agentContributedDefaultIsCore,
+						agentActivatedCount,
+						agentLocation: this.location,
+						agentModeKind: modeInfo?.kind,
 						languageModelReady,
+						languageModelCount: languageModelIds.length,
+						languageModelDefaultCount,
+						languageModelHasRequestedModel: !!requestModel.modelId,
 						toolsModelReady
 					});
 
@@ -391,26 +381,62 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						comment: 'Provides insight into chat setup timeouts.';
 						agentActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent was activated.' };
 						agentReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent was ready.' };
+						agentHasDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a default agent exists for the location and mode.' };
+						agentDefaultIsCore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the default agent is a core agent.' };
+						agentHasContributedDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a contributed default agent exists for the location.' };
+						agentContributedDefaultIsCore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the contributed default agent is a core agent.' };
+						agentActivatedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of activated agents at timeout.' };
+						agentLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat agent location.' };
+						agentModeKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode kind.' };
 						languageModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the language model was ready.' };
+						languageModelCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of registered language models at timeout.' };
+						languageModelDefaultCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of language models with isDefaultForLocation[Chat] set.' };
+						languageModelHasRequestedModel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a specific model ID was requested.' };
 						toolsModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tools model was ready.' };
 						isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this is a remote scenario.' };
 						isAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether anonymous access is enabled.' };
+						matchingWelcomeViewWhen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The when clause of the matching extension welcome view, if any.' };
 					};
 					type ChatSetupTimeoutEvent = {
 						agentActivated: boolean;
 						agentReady: boolean;
+						agentHasDefault: boolean;
+						agentDefaultIsCore: boolean;
+						agentHasContributedDefault: boolean;
+						agentContributedDefaultIsCore: boolean;
+						agentActivatedCount: number;
+						agentLocation: string;
+						agentModeKind: string;
 						languageModelReady: boolean;
+						languageModelCount: number;
+						languageModelDefaultCount: number;
+						languageModelHasRequestedModel: boolean;
 						toolsModelReady: boolean;
 						isRemote: boolean;
 						isAnonymous: boolean;
+						matchingWelcomeViewWhen: string;
 					};
+					const chatViewPane = this.viewsService.getActiveViewWithId(ChatViewId) as ChatViewPane | undefined;
+					const matchingWelcomeView = chatViewPane?.getMatchingWelcomeView();
+
 					this.telemetryService.publicLog2<ChatSetupTimeoutEvent, ChatSetupTimeoutClassification>('chatSetup.timeout', {
 						agentActivated,
 						agentReady,
+						agentHasDefault,
+						agentDefaultIsCore,
+						agentHasContributedDefault,
+						agentContributedDefaultIsCore,
+						agentActivatedCount,
+						agentLocation: this.location,
+						agentModeKind: modeInfo?.kind ?? '',
 						languageModelReady,
+						languageModelCount: languageModelIds.length,
+						languageModelDefaultCount,
+						languageModelHasRequestedModel: !!requestModel.modelId,
 						toolsModelReady,
 						isRemote: !!this.environmentService.remoteAuthority,
-						isAnonymous: this.chatEntitlementService.anonymous
+						isAnonymous: this.chatEntitlementService.anonymous,
+						matchingWelcomeViewWhen: matchingWelcomeView?.when.serialize() ?? (chatViewPane ? 'noWelcomeView' : 'noChatViewPane'),
 					});
 
 					progress({
@@ -424,11 +450,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 							id: SetupAgent.CHAT_RETRY_COMMAND_ID,
 							title: localize('retryChat', "Restart"),
 							arguments: [requestModel.session.sessionResource]
-						},
-						additionalCommands: [{
-							id: SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID,
-							title: localize('reportChatIssue', "Report Issue"),
-						}]
+						}
 					});
 
 					// This means Chat is unhealthy and we cannot retry the
@@ -478,14 +500,14 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 
 		// check that tools other than setup. and internal tools are registered.
-		for (const tool of languageModelToolsService.getTools()) {
+		for (const tool of languageModelToolsService.getAllToolsIncludingDisabled()) {
 			if (tool.id.startsWith('copilot_')) {
 				return; // we have tools!
 			}
 		}
 
 		return Event.toPromise(Event.filter(languageModelToolsService.onDidChangeTools, () => {
-			for (const tool of languageModelToolsService.getTools()) {
+			for (const tool of languageModelToolsService.getAllToolsIncludingDisabled()) {
 				if (tool.id.startsWith('copilot_')) {
 					return true; // we have tools!
 				}

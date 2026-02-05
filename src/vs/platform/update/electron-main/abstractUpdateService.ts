@@ -44,6 +44,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	protected _overwrite: boolean = false;
 	private _hasCheckedForOverwriteOnQuit: boolean = false;
 	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
+	private _disableProgressiveReleases: boolean = false;
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
@@ -247,7 +248,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.logService.info('update#readyStateCheck: newer update available, restarting update machinery');
 			await this.cancelPendingUpdate();
 			this._overwrite = true;
-			this.setState(State.Overwriting(explicit));
+			this.setState(State.Overwriting(this._state.update, explicit));
 			this.doCheckForUpdates(explicit, pendingUpdateCommit);
 			return true;
 		}
@@ -287,6 +288,15 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {
 		// noop
+	}
+
+	async disableProgressiveReleases(): Promise<void> {
+		this.logService.info('update#disableProgressiveReleases');
+		this._disableProgressiveReleases = true;
+	}
+
+	protected shouldDisableProgressiveReleases(): boolean {
+		return this._disableProgressiveReleases;
 	}
 
 	protected getUpdateType(): UpdateType {
