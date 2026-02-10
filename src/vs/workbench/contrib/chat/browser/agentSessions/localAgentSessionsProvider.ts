@@ -69,6 +69,12 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 				this._onDidChangeChatSessionItems.fire();
 			}
 		}));
+
+		this._register(this.chatService.onDidChangeSessionTitle(e => {
+			if (getChatSessionType(e.sessionResource) === this.chatSessionType) {
+				this._onDidChangeChatSessionItems.fire();
+			}
+		}));
 	}
 
 	private async provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]> {
