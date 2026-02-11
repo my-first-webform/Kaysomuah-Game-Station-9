@@ -7,7 +7,7 @@ import './media/agentSessionsWelcome.css';
 import { $, addDisposableListener, append, clearNode, Dimension, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -25,7 +25,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
-import { getListStyles, getToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultCheckboxStyles, getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext, IEditorSerializer } from '../../../common/editor.js';
@@ -748,17 +748,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		// Show on startup checkbox
 		const showOnStartupContainer = append(container, $('.agentSessionsWelcome-showOnStartup'));
-		const showOnStartupCheckbox = this.contentDisposables.add(new Toggle({
-			icon: Codicon.check,
-			actionClassName: 'agentSessionsWelcome-checkbox',
-			isChecked: this.configurationService.getValue(configurationKey) === 'agentSessionsWelcomePage',
-			title: localize('checkboxTitle', "When checked, this page will be shown on startup."),
-			...getToggleStyles({
-				inputActiveOptionBackground: 'var(--vscode-descriptionForeground)',
-				inputActiveOptionForeground: 'var(--vscode-editor-background)',
-				inputActiveOptionBorder: 'var(--vscode-descriptionForeground)',
-			})
-		}));
+		const showOnStartupCheckbox = this.contentDisposables.add(new Checkbox(
+			localize('checkboxTitle', "When checked, this page will be shown on startup."),
+			this.configurationService.getValue(configurationKey) === 'agentSessionsWelcomePage',
+			defaultCheckboxStyles
+		));
 		showOnStartupCheckbox.domNode.id = 'showOnStartup';
 		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('showOnStartup', "Show welcome page on startup"));
 

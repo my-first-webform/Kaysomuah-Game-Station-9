@@ -58,7 +58,7 @@
 	padding: 4px 8px;
 	padding-left: 0;
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: transparent;
 	color: var(--vscode-descriptionForeground);
 	font-size: 13px;
@@ -77,7 +77,7 @@
 .agentSessionsWelcome-chatSection {
 	width: 100%;
 	max-width: 800px;
-	margin-top: 24px;
+	margin-top: 16px;
 }
 
 /* Hide the chat tree/list - we only want the input */
@@ -197,7 +197,7 @@
 
 /* Style individual session items in the welcome page */
 .agentSessionsWelcome-sessionsGrid .agent-session-item {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .agentSessionsWelcome-sessionsGrid .agent-session-item:hover {
@@ -215,19 +215,18 @@
 	justify-content: center;
 	gap: 6px;
 	width: 100%;
-	padding: 8px 16px;
-	margin-top: 12px;
-	border: none;
-	border-radius: 4px;
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
-	font-size: 13px;
+	padding: 6px 16px;
+	margin-top: 20px;
+	border: 1px solid var(--vscode-button-secondaryBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font-size: var(--vscode-bodyFontSize);
 	cursor: pointer;
 }
 
 .agentSessionsWelcome-openSessionsButton:hover {
-	background-color: var(--vscode-toolbar-activeBackground);
-	color: var(--vscode-textLink-foreground);
+	background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
 /* Walkthroughs section */
@@ -298,7 +297,7 @@
 	align-items: center;
 	justify-content: center;
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: transparent;
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
@@ -321,7 +320,7 @@
 	gap: 8px;
 	width: 100%;
 	max-width: 800px;
-	margin-top: 24px;
+	margin-top: 28px;
 }
 
 .agentSessionsWelcome-footerLink {
@@ -330,7 +329,7 @@
 	gap: 8px;
 	padding: 8px 16px;
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: transparent;
 	color: var(--vscode-foreground);
 	font-size: 13px;
@@ -348,35 +347,12 @@
 .agentSessionsWelcome-showOnStartup {
 	display: flex;
 	align-items: center;
-	gap: 8px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 }
 
 .agentSessionsWelcome-showOnStartup label {
 	cursor: pointer;
-}
-
-.agentSessionsWelcome-checkbox {
-	width: 18px;
-	height: 18px;
-	float: none;
-	margin-left: 0;
-	border: 1px solid var(--vscode-checkbox-border) !important;
-	border-radius: 3px;
-	padding: 0;
-	background-color: var(--vscode-checkbox-background) !important;
-	color: var(--vscode-checkbox-foreground) !important;
-}
-
-.agentSessionsWelcome-checkbox.checked {
-	background-color: var(--vscode-descriptionForeground) !important;
-	border-color: var(--vscode-descriptionForeground) !important;
-	color: var(--vscode-editor-background) !important;
-}
-
-.agentSessionsWelcome-checkbox.codicon:not(.checked)::before {
-	opacity: 0;
 }
 
 /* TOS/Privacy card - simple inline notice */
@@ -441,7 +417,7 @@
 	width: 22px;
 	height: 22px;
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: transparent;
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
@@ -481,7 +457,7 @@
 	align-items: center;
 	gap: 12px;
 	padding: 8px 12px 8px 8px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	height: 52px;
 	box-sizing: border-box;
 }
@@ -489,7 +465,7 @@
 .agentSessionsWelcome-sessionSkeleton-icon {
 	width: 20px;
 	height: 20px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: var(--vscode-welcomePage-tileBorder, var(--vscode-contrastBorder, rgba(128, 128, 128, 0.2)));
 	animation: agentSessionsWelcome-shimmer 1.5s ease-in-out infinite;
 }
