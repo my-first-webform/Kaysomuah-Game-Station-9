@@ -17,7 +17,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { LocalAgentsSessionsController } from '../../../browser/agentSessions/localAgentSessionsController.js';
 import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ChatRequestQueueKind, IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatDetail, IChatService, IChatSessionStartOptions, ICrossWorkspaceSessionDetail, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
@@ -210,7 +210,7 @@ class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	async getCrossWorkspaceHistoryItems(): Promise<any[]> {
+	async getCrossWorkspaceHistoryItems(): Promise<ICrossWorkspaceSessionDetail[]> {
 		return [];
 	}
 

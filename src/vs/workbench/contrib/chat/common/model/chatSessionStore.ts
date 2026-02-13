@@ -9,7 +9,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { joinPath } from '../../../../../base/common/resources.js';
+import { basename, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -69,7 +69,7 @@ export class ChatSessionStore extends Disposable {
 		this.workspaceId = workspace.id;
 		this.workspaceName = workspace.folders.length > 0
 			? workspace.folders.map(f => f.name).join(', ')
-			: workspace.configuration?.path ? workspace.configuration.path : 'Empty Window';
+			: workspace.configuration ? basename(workspace.configuration) : 'Empty Window';
 		this.storageRoot = this.isEmptyWindow ?
 			joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'emptyWindowChatSessions') :
 			joinPath(this.environmentService.workspaceStorageHome, this.workspaceId, 'chatSessions');
@@ -445,6 +445,9 @@ export class ChatSessionStore extends Disposable {
 			}
 
 			this.storageService.store(GlobalChatIndexStorageKey, JSON.stringify(globalIndex), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+			// Invalidate the cached global index so it is re-read from storage on next access
+			this.globalIndexCache = undefined;
 		} catch (e) {
 			this.logService.error('ChatSessionStore: Error writing global index', e);
 		}
