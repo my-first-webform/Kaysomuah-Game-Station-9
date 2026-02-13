@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
@@ -83,6 +84,21 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(title, 'title element should exist when only title is provided');
 			// Title should fall back to title property when message is not provided
 			assert.ok(title?.textContent?.includes('Fallback title text'));
+		});
+
+		test('renders markdown content in question message', () => {
+			const markdownMessage = new MarkdownString('**Bold text** and `code`');
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1', message: markdownMessage }
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title, 'title element should exist');
+			// When message is IMarkdownString, it should render markdown content
+			const renderedMarkdown = title?.querySelector('.rendered-markdown');
+			assert.ok(renderedMarkdown, 'Should render markdown when message is IMarkdownString');
+			assert.ok(title?.textContent?.includes('Bold text'), 'Should contain the markdown text content');
 		});
 
 		test('renders progress indicator correctly', () => {

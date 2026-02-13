@@ -5,12 +5,15 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { IMarkdownString as _, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -55,6 +58,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _multiSelectCheckboxes: Map<string, Checkbox[]> = new Map();
 	private readonly _freeformTextareas: Map<string, HTMLTextAreaElement> = new Map();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
+	private readonly _renderedTitle: MutableDisposable<IRenderedMarkdown> = this._register(new MutableDisposable());
 
 	/**
 	 * Disposable store for interactive UI components (header, nav buttons, etc.)
@@ -68,6 +72,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		private readonly _options: IChatQuestionCarouselOptions,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
@@ -270,6 +275,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._singleSelectItems.clear();
 		this._multiSelectCheckboxes.clear();
 		this._freeformTextareas.clear();
+		this._renderedTitle.clear();
 
 		// Clear references to disposed elements
 		this._prevButton = undefined;
@@ -458,20 +464,32 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			title.setAttribute('aria-label', messageContent);
 
-			// Check for subtitle in parentheses at the end
-			const parenMatch = messageContent.match(/^(.+?)\s*(\([^)]+\))\s*$/);
-			if (parenMatch) {
-				// Main title (bold)
-				const mainTitle = dom.$('span.chat-question-title-main');
-				mainTitle.textContent = parenMatch[1];
-				title.appendChild(mainTitle);
-
-				// Subtitle in parentheses (normal weight)
-				const subtitle = dom.$('span.chat-question-title-subtitle');
-				subtitle.textContent = ' ' + parenMatch[2];
-				title.appendChild(subtitle);
+			// Use markdown rendering when questionText is IMarkdownString (has markdown formatting)
+			if (typeof questionText !== 'string') {
+				// Dispose previous rendered title
+				this._renderedTitle.clear();
+				const rendered = this._markdownRendererService.render(
+					new MarkdownString(questionText.value, { supportThemeIcons: true, isTrusted: questionText.isTrusted }),
+					{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
+				);
+				this._renderedTitle.value = rendered;
+				title.appendChild(rendered.element);
 			} else {
-				title.textContent = messageContent;
+				// For plain strings, check for subtitle in parentheses at the end
+				const parenMatch = messageContent.match(/^(.+?)\s*(\([^)]+\))\s*$/);
+				if (parenMatch) {
+					// Main title (bold)
+					const mainTitle = dom.$('span.chat-question-title-main');
+					mainTitle.textContent = parenMatch[1];
+					title.appendChild(mainTitle);
+
+					// Subtitle in parentheses (normal weight)
+					const subtitle = dom.$('span.chat-question-title-subtitle');
+					subtitle.textContent = ' ' + parenMatch[2];
+					title.appendChild(subtitle);
+				} else {
+					title.textContent = messageContent;
+				}
 			}
 			headerRow.appendChild(title);
 		}
