@@ -24,7 +24,7 @@ import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../../search/common/search.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from '../participants/chatAgents.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
-import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
+import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializedChatDataReference } from '../model/chatModel.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
@@ -1203,6 +1203,17 @@ export interface IChatDetail {
 	lastResponseState: ResponseModelState;
 }
 
+export interface ICrossWorkspaceSessionDetail {
+	sessionId: string;
+	title: string;
+	lastMessageDate: number;
+	timing: IChatSessionTiming;
+	lastResponseState: ResponseModelState;
+	workspaceId: string;
+	workspaceName: string;
+	storageRoot: string;
+}
+
 export interface IChatProviderInfo {
 	id: string;
 }
@@ -1412,6 +1423,8 @@ export interface IChatService {
 	logChatIndex(): void;
 	getLiveSessionItems(): Promise<IChatDetail[]>;
 	getHistorySessionItems(): Promise<IChatDetail[]>;
+	getCrossWorkspaceHistoryItems(): Promise<ICrossWorkspaceSessionDetail[]>;
+	readCrossWorkspaceSession(sessionId: string, storageRoot: string): Promise<ISerializedChatDataReference | undefined>;
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined>;
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;

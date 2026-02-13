@@ -209,6 +209,14 @@ class MockChatService implements IChatService {
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
 	}
+
+	async getCrossWorkspaceHistoryItems(): Promise<any[]> {
+		return [];
+	}
+
+	async readCrossWorkspaceSession(): Promise<undefined> {
+		return undefined;
+	}
 }
 
 function createMockChatModel(options: {

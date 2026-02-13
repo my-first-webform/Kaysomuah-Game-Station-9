@@ -35,11 +35,15 @@ const maxPersistedSessions = 50;
 
 const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
+const GlobalChatIndexStorageKey = 'chat.ChatSessionStore.globalIndex';
 
 export class ChatSessionStore extends Disposable {
 	private storageRoot: URI;
 	private readonly previousEmptyWindowStorageRoot: URI | undefined;
 	private readonly transferredSessionStorageRoot: URI;
+	private readonly workspaceId: string;
+	private readonly workspaceName: string;
+	private readonly isEmptyWindow: boolean;
 
 	private readonly storeQueue = new Sequencer();
 
@@ -61,13 +65,16 @@ export class ChatSessionStore extends Disposable {
 		super();
 
 		const workspace = this.workspaceContextService.getWorkspace();
-		const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
-		const workspaceId = this.workspaceContextService.getWorkspace().id;
-		this.storageRoot = isEmptyWindow ?
+		this.isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
+		this.workspaceId = workspace.id;
+		this.workspaceName = workspace.folders.length > 0
+			? workspace.folders.map(f => f.name).join(', ')
+			: workspace.configuration?.path ? workspace.configuration.path : 'Empty Window';
+		this.storageRoot = this.isEmptyWindow ?
 			joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'emptyWindowChatSessions') :
-			joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'chatSessions');
+			joinPath(this.environmentService.workspaceStorageHome, this.workspaceId, 'chatSessions');
 
-		this.previousEmptyWindowStorageRoot = isEmptyWindow ?
+		this.previousEmptyWindowStorageRoot = this.isEmptyWindow ?
 			joinPath(this.environmentService.workspaceStorageHome, 'no-workspace', 'chatSessions') :
 			undefined;
 
@@ -393,6 +400,146 @@ export class ChatSessionStore extends Disposable {
 		} catch (e) {
 			// Only if JSON.stringify fails, AFAIK
 			this.reportError('indexWrite', 'Error writing index', e);
+		}
+
+		// Also update the global cross-workspace index
+		this.flushGlobalIndex(index);
+	}
+
+	/**
+	 * Writes the current workspace's session metadata into the global cross-workspace index,
+	 * stored at APPLICATION scope so it is accessible from any workspace.
+	 */
+	private flushGlobalIndex(localIndex: IChatSessionIndexData): void {
+		if (this.isEmptyWindow) {
+			return; // Don't index empty window sessions globally
+		}
+
+		try {
+			const globalIndex = this.internalGetGlobalIndex();
+
+			// Update this workspace's entries in the global index
+			const workspaceEntry: IGlobalChatWorkspaceEntry = {
+				workspaceName: this.workspaceName,
+				storageRoot: this.storageRoot.toString(),
+				entries: {},
+			};
+
+			for (const [sessionId, metadata] of Object.entries(localIndex.entries)) {
+				if (!metadata.isExternal && !metadata.isEmpty) {
+					workspaceEntry.entries[sessionId] = {
+						sessionId: metadata.sessionId,
+						title: metadata.title,
+						lastMessageDate: metadata.lastMessageDate,
+						timing: metadata.timing,
+						lastResponseState: metadata.lastResponseState,
+					};
+				}
+			}
+
+			// If this workspace has no non-empty, non-external sessions, remove its entry
+			if (Object.keys(workspaceEntry.entries).length === 0) {
+				delete globalIndex.workspaces[this.workspaceId];
+			} else {
+				globalIndex.workspaces[this.workspaceId] = workspaceEntry;
+			}
+
+			this.storageService.store(GlobalChatIndexStorageKey, JSON.stringify(globalIndex), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} catch (e) {
+			this.logService.error('ChatSessionStore: Error writing global index', e);
+		}
+	}
+
+	private globalIndexCache: IGlobalChatSessionIndex | undefined;
+	private internalGetGlobalIndex(): IGlobalChatSessionIndex {
+		if (this.globalIndexCache) {
+			return this.globalIndexCache;
+		}
+
+		const data = this.storageService.get(GlobalChatIndexStorageKey, StorageScope.APPLICATION, undefined);
+		if (!data) {
+			this.globalIndexCache = { version: 1, workspaces: {} };
+			return this.globalIndexCache;
+		}
+
+		try {
+			const parsed = JSON.parse(data);
+			if (parsed && typeof parsed === 'object' && parsed.version === 1 && typeof parsed.workspaces === 'object') {
+				this.globalIndexCache = parsed as IGlobalChatSessionIndex;
+			} else {
+				this.globalIndexCache = { version: 1, workspaces: {} };
+			}
+		} catch (e) {
+			this.logService.error('ChatSessionStore: Global index corrupt', e);
+			this.globalIndexCache = { version: 1, workspaces: {} };
+		}
+
+		return this.globalIndexCache;
+	}
+
+	/**
+	 * Returns metadata for chat sessions from OTHER workspaces on this machine.
+	 * Each entry includes the workspace name and the storage root path needed to read the session content.
+	 * Filters out workspaces that have no entries (stale entries from deleted sessions).
+	 */
+	async getGlobalIndex(): Promise<ICrossWorkspaceSessionEntry[]> {
+		return this.storeQueue.queue(async () => {
+			const globalIndex = this.internalGetGlobalIndex();
+			const results: ICrossWorkspaceSessionEntry[] = [];
+
+			for (const [workspaceId, workspace] of Object.entries(globalIndex.workspaces)) {
+				if (workspaceId === this.workspaceId) {
+					continue; // Skip current workspace
+				}
+
+				// Skip workspaces with no entries (stale entries)
+				if (!workspace.entries || Object.keys(workspace.entries).length === 0) {
+					continue;
+				}
+
+				// Validate workspace entry structure
+				if (!workspace.workspaceName || !workspace.storageRoot) {
+					this.logService.trace(`ChatSessionStore: Skipping malformed global index entry for workspace ${workspaceId}`);
+					continue;
+				}
+
+				for (const [sessionId, metadata] of Object.entries(workspace.entries)) {
+					results.push({
+						sessionId,
+						title: metadata.title,
+						lastMessageDate: metadata.lastMessageDate,
+						timing: metadata.timing,
+						lastResponseState: metadata.lastResponseState,
+						workspaceId,
+						workspaceName: workspace.workspaceName,
+						storageRoot: workspace.storageRoot,
+					});
+				}
+			}
+
+			return results;
+		});
+	}
+
+	/**
+	 * Reads a session from another workspace's storage root.
+	 * Returns undefined if the storage root is invalid or the session file does not exist.
+	 */
+	async readCrossWorkspaceSession(sessionId: string, storageRoot: string): Promise<ISerializedChatDataReference | undefined> {
+		if (!storageRoot || !sessionId) {
+			return undefined;
+		}
+
+		try {
+			const storageRootUri = URI.parse(storageRoot);
+			const flatLocation = joinPath(storageRootUri, `${sessionId}.json`);
+			const logLocation = this.configurationService.getValue('chat.useLogSessionStorage') !== false
+				? joinPath(storageRootUri, `${sessionId}.jsonl`)
+				: undefined;
+			return await this.readSessionFromLocation(flatLocation, logLocation, sessionId);
+		} catch (e) {
+			this.logService.error(`ChatSessionStore: Error reading cross-workspace session ${sessionId} from ${storageRoot}`, e);
+			return undefined;
 		}
 	}
 
@@ -824,3 +971,37 @@ type IChatTransferDto = Dto<IChatTransfer>;
  * Map of destination workspace URI to chat transfer data
  */
 type IChatTransferIndex = Record<string, IChatTransferDto>;
+
+// #region Global Cross-Workspace Index
+
+interface IGlobalChatSessionIndex {
+	version: 1;
+	workspaces: Record<string, IGlobalChatWorkspaceEntry>;
+}
+
+interface IGlobalChatWorkspaceEntry {
+	workspaceName: string;
+	storageRoot: string;
+	entries: Record<string, IGlobalChatSessionMetadata>;
+}
+
+interface IGlobalChatSessionMetadata {
+	sessionId: string;
+	title: string;
+	lastMessageDate: number;
+	timing: IChatSessionTiming;
+	lastResponseState: ResponseModelState;
+}
+
+export interface ICrossWorkspaceSessionEntry {
+	sessionId: string;
+	title: string;
+	lastMessageDate: number;
+	timing: IChatSessionTiming;
+	lastResponseState: ResponseModelState;
+	workspaceId: string;
+	workspaceName: string;
+	storageRoot: string;
+}
+
+// #endregion
