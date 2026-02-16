@@ -397,10 +397,15 @@ export class ModelRawLinesDeleted {
 	 * At what line the deletion stopped (inclusive).
 	 */
 	public readonly toLineNumber: number;
+	/**
+	 * The post-edit line number corresponding to the splice point (the line at which the deletion starts in the post-edit model).
+	 */
+	public readonly lastUntouchedLinePostEdit: number;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
+	constructor(fromLineNumber: number, toLineNumber: number, lastUntouchedLinePostEdit: number) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
+		this.lastUntouchedLinePostEdit = lastUntouchedLinePostEdit;
 	}
 }
 
