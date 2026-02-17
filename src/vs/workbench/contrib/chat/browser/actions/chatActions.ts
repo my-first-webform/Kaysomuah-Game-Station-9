@@ -1453,7 +1453,20 @@ export function computeToolEnablementMap(options: IToolFilteringOptions): IToolF
 	// Validate at least one tool is enabled
 	const enabledToolCount = Array.from(enablementMap.entries()).filter(([item, enabled]) => enabled && !isToolSet(item)).length;
 	if (enabledToolCount === 0) {
-		throw new Error('Tool filtering resulted in zero enabled tools. At least one tool must be enabled.');
+		// Collect all available identifiers (using Set to avoid duplicates)
+		const availableIdentifiers = new Set<string>();
+		for (const tool of allTools) {
+			availableIdentifiers.add(tool.id);
+			if (tool.toolReferenceName) {
+				availableIdentifiers.add(tool.toolReferenceName);
+			}
+		}
+		for (const toolSet of allToolSets) {
+			availableIdentifiers.add(toolSet.id);
+			availableIdentifiers.add(toolSet.referenceName);
+		}
+		const identifiersList = Array.from(availableIdentifiers).join(', ');
+		throw new Error(`Tool filtering resulted in zero enabled tools. At least one tool must be enabled. Available identifiers: ${identifiersList}`);
 	}
 
 	// Calculate toolset enablement based on whether all member tools are enabled
