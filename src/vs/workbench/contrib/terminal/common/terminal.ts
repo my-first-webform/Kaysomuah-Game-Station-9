@@ -693,6 +693,10 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 								}
 							}]
 						},
+						group: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.group', "The group for this terminal profile. Profiles with group 'ai' are elevated in the terminal dropdown."),
+							type: 'string',
+						},
 					},
 				},
 			},

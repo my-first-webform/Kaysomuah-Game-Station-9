@@ -440,6 +440,9 @@ const _allApiProposals = {
 	terminalExecuteCommandEvent: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.terminalExecuteCommandEvent.d.ts',
 	},
+	terminalProfileGroup: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.terminalProfileGroup.d.ts',
+	},
 	terminalQuickFixProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.terminalQuickFixProvider.d.ts',
 	},

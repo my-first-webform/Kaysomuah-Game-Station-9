@@ -142,13 +142,9 @@ export class TerminalProfileQuickpick {
 		const configProfiles = profiles.filter(e => !e.isAutoDetected);
 		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
 
-		if (configProfiles.length > 0) {
-			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
-			quickPickItems.push(...this._sortProfileQuickPickItems(configProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
-		}
-
-		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
-		const contributedProfiles: IProfileQuickPickItem[] = [];
+		// Build contributed profile quick pick items, partitioned into elevated (AI) and regular
+		const elevatedContributedProfiles: IProfileQuickPickItem[] = [];
+		const regularContributedProfiles: IProfileQuickPickItem[] = [];
 		for (const contributed of this._terminalProfileService.contributedProfiles) {
 			let icon: ThemeIcon | undefined;
 			if (isString(contributed.icon)) {
@@ -170,7 +166,7 @@ export class TerminalProfileQuickpick {
 			if (colorClass) {
 				iconClasses.push(colorClass);
 			}
-			contributedProfiles.push({
+			const item: IProfileQuickPickItem = {
 				label: `$(${icon.id}) ${contributed.title}`,
 				profile: {
 					extensionIdentifier: contributed.extensionIdentifier,
@@ -181,11 +177,28 @@ export class TerminalProfileQuickpick {
 				},
 				profileName: contributed.title,
 				iconClasses
-			});
+			};
+			if (contributed.group === 'ai') {
+				elevatedContributedProfiles.push(item);
+			} else {
+				regularContributedProfiles.push(item);
+			}
 		}
 
-		if (contributedProfiles.length > 0) {
-			quickPickItems.push(...this._sortProfileQuickPickItems(contributedProfiles, defaultProfileName!));
+		// Elevated AI profiles appear first
+		if (elevatedContributedProfiles.length > 0) {
+			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.ai', "AI") });
+			quickPickItems.push(...this._sortProfileQuickPickItems(elevatedContributedProfiles, defaultProfileName!));
+		}
+
+		if (configProfiles.length > 0) {
+			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
+			quickPickItems.push(...this._sortProfileQuickPickItems(configProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName!));
+		}
+
+		if (regularContributedProfiles.length > 0) {
+			quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
+			quickPickItems.push(...this._sortProfileQuickPickItems(regularContributedProfiles, defaultProfileName!));
 		}
 
 		if (autoDetectedProfiles.length > 0) {

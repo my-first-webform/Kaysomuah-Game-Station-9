@@ -962,6 +962,7 @@ export interface ITerminalProfileContribution {
 	id: string;
 	icon?: URI | { light: URI; dark: URI } | string;
 	color?: string;
+	group?: string;
 }
 
 export interface IExtensionTerminalProfile extends ITerminalProfileContribution {

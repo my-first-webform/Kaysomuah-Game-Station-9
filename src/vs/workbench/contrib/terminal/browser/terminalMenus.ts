@@ -807,6 +807,36 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	}))));
 	dropdownActions.push(new Separator());
 
+	// Partition contributed profiles into elevated (AI) and regular groups
+	const elevatedContributed = contributedProfiles.filter(p => p.group === 'ai');
+	const regularContributed = contributedProfiles.filter(p => p.group !== 'ai');
+
+	// Add elevated AI profiles first in their own section
+	for (const contributed of elevatedContributed) {
+		const isDefault = contributed.title === defaultProfileName;
+		const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
+		dropdownActions.push(disposableStore.add(new Action('contributed', title, undefined, true, () => terminalService.createAndFocusTerminal({
+			config: {
+				extensionIdentifier: contributed.extensionIdentifier,
+				id: contributed.id,
+				title
+			},
+			location
+		}))));
+		submenuActions.push(disposableStore.add(new Action('contributed-split', title, undefined, true, () => terminalService.createAndFocusTerminal({
+			config: {
+				extensionIdentifier: contributed.extensionIdentifier,
+				id: contributed.id,
+				title
+			},
+			location: splitLocation
+		}))));
+	}
+
+	if (elevatedContributed.length > 0) {
+		dropdownActions.push(new Separator());
+	}
+
 	profiles = profiles.filter(e => !e.isAutoDetected);
 	for (const p of profiles) {
 		const isDefault = p.profileName === defaultProfileName;
@@ -821,7 +851,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		})));
 	}
 
-	for (const contributed of contributedProfiles) {
+	for (const contributed of regularContributed) {
 		const isDefault = contributed.title === defaultProfileName;
 		const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
 		dropdownActions.push(disposableStore.add(new Action('contributed', title, undefined, true, () => terminalService.createAndFocusTerminal({

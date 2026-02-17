@@ -45,7 +45,12 @@ export class TerminalContributionService implements ITerminalContributionService
 		terminalsExtPoint.setHandler(contributions => {
 			this._terminalProfiles = contributions.map(c => {
 				return c.value?.profiles?.filter(p => hasValidTerminalIcon(p)).map(e => {
-					return { ...e, extensionIdentifier: c.description.identifier.value };
+					const profile: IExtensionTerminalProfile = { ...e, extensionIdentifier: c.description.identifier.value };
+					// Strip the group field if the extension does not have the proposed API enabled
+					if (profile.group && !isProposedApiEnabled(c.description, 'terminalProfileGroup')) {
+						delete profile.group;
+					}
+					return profile;
 				}) || [];
 			}).flat();
 
