@@ -56,6 +56,8 @@
 .monaco-editor .parameter-hints-widget .signature {
 	padding: 4px 5px;
 	position: relative;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
 }
 
 .monaco-editor .parameter-hints-widget .signature.has-docs::after {
@@ -71,6 +73,9 @@
 
 .monaco-editor .parameter-hints-widget .code {
 	font-family: var(--vscode-parameterHintsWidget-editorFontFamily), var(--vscode-parameterHintsWidget-editorFontFamilyDefault);
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
 }
 
 .monaco-editor .parameter-hints-widget .docs {
