@@ -112,6 +112,9 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 	/** Whether the auxiliary bar was maximized when entering projection mode */
 	private _wasAuxiliaryBarMaximized = false;
 
+	/** Whether the primary side bar was visible when entering projection mode */
+	private _wasSideBarVisible = false;
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -253,10 +256,12 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 			return;
 		}
 
-		// Detect if auxiliary bar is maximized before any layout changes
+		// Detect layout state before any layout changes
 		const isAuxBarMaximized = this.layoutService.isAuxiliaryBarMaximized();
-		this.logService.trace('[AgentSessionProjection] enterProjection auxiliary bar state', {
-			isAuxiliaryBarMaximized: isAuxBarMaximized
+		const isSideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
+		this.logService.trace('[AgentSessionProjection] enterProjection layout state', {
+			isAuxiliaryBarMaximized: isAuxBarMaximized,
+			isSideBarVisible: isSideBarVisible
 		});
 
 		// Never enter projection mode for sessions that are in progress
@@ -359,11 +364,13 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 					this._inProjectionModeContextKey.set(true);
 					this.layoutService.mainContainer.classList.add('agent-session-projection-active');
 
-					// Capture auxiliary bar maximized state when first entering projection
+					// Capture layout state when first entering projection
 					if (!wasActive) {
 						this._wasAuxiliaryBarMaximized = isAuxBarMaximized;
-						this.logService.trace('[AgentSessionProjection] captured auxiliary bar maximized state', {
-							wasAuxiliaryBarMaximized: this._wasAuxiliaryBarMaximized
+						this._wasSideBarVisible = isSideBarVisible;
+						this.logService.trace('[AgentSessionProjection] captured layout state', {
+							wasAuxiliaryBarMaximized: this._wasAuxiliaryBarMaximized,
+							wasSideBarVisible: this._wasSideBarVisible
 						});
 					}
 
@@ -391,8 +398,14 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 			await this.commandService.executeCommand('chatEditing.viewChanges');
 		}
 
-		// If auxiliary bar was maximized, hide it during projection to show full editor
+		// Hide primary side bar during projection to show full editor
 		// This must be done after opening the session to avoid the session opening re-showing the bar
+		if (this._wasSideBarVisible) {
+			this.logService.trace('[AgentSessionProjection] hiding primary side bar during projection');
+			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		}
+
+		// If auxiliary bar was maximized, hide it during projection to show full editor
 		if (this._wasAuxiliaryBarMaximized) {
 			this.logService.trace('[AgentSessionProjection] hiding maximized auxiliary bar during projection');
 			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
@@ -444,7 +457,9 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		this._activeSession = undefined;
 		this._inProjectionModeContextKey.set(false);
 		const shouldRestoreMaximized = this._wasAuxiliaryBarMaximized;
+		const shouldRestoreSideBar = this._wasSideBarVisible;
 		this._wasAuxiliaryBarMaximized = false;
+		this._wasSideBarVisible = false;
 		this.layoutService.mainContainer.classList.remove('agent-session-projection-active');
 
 		// Update the agent status to exit session mode
@@ -456,6 +471,12 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		// Start a new chat to clear the sidebar (unless caller wants to keep current chat)
 		if (startNewChat) {
 			await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		}
+
+		// Restore primary side bar if it was visible before entering projection
+		if (shouldRestoreSideBar) {
+			this.logService.trace('[AgentSessionProjection] restoring primary side bar visibility');
+			this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
 		}
 
 		// Restore auxiliary bar maximized state if it was maximized before entering projection
