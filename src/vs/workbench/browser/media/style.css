@@ -222,16 +222,16 @@ body {
 
 /* Keyboard Focus Indication Styles */
 
-.monaco-workbench [tabindex="0"]:focus,
-.monaco-workbench [tabindex="-1"]:focus,
+.monaco-workbench [tabindex="0"]:focus-visible,
+.monaco-workbench [tabindex="-1"]:focus-visible,
 .monaco-workbench .synthetic-focus,
-.monaco-workbench select:focus,
-.monaco-workbench input[type="button"]:focus,
-.monaco-workbench input[type="text"]:focus,
-.monaco-workbench button:focus,
-.monaco-workbench textarea:focus,
-.monaco-workbench input[type="search"]:focus,
-.monaco-workbench input[type="checkbox"]:focus {
+.monaco-workbench select:focus-visible,
+.monaco-workbench input[type="button"]:focus-visible,
+.monaco-workbench input[type="text"]:focus-visible,
+.monaco-workbench button:focus-visible,
+.monaco-workbench textarea:focus-visible,
+.monaco-workbench input[type="search"]:focus-visible,
+.monaco-workbench input[type="checkbox"]:focus-visible {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
@@ -244,7 +244,7 @@ body {
 	background: transparent; /* Search input focus fix when in high contrast */
 }
 
-.monaco-workbench input[type="checkbox"]:focus {
+.monaco-workbench input[type="checkbox"]:focus-visible {
 	outline-offset: 2px;
 }
 
@@ -256,11 +256,11 @@ body {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 
-.monaco-workbench.mac select:focus {
+.monaco-workbench.mac select:focus-visible {
 	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/microsoft/vscode/issues/26045) */
 }
 
-.monaco-workbench .monaco-list:not(.element-focused):not(:active):focus:before {
+.monaco-workbench .monaco-list:not(.element-focused):not(:active):focus:not(.pointer-focus):before {
 	position: absolute;
 	top: 0;
 	left: 0;

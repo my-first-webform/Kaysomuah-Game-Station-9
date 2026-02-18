@@ -35,7 +35,7 @@
 .monaco-workbench > .notifications-toasts .notifications-list-container,
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast,
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-scrollable-element,
-.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list:not(.element-focused):focus:before,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list:not(.element-focused):focus:not(.pointer-focus):before,
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list-row {
 	border-radius: 4px;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isEditableElement, isHTMLElement, isMouseEvent } from '../../dom.js';
+import { addDisposableListener, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isEditableElement, isHTMLElement, isMouseEvent } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
 import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
@@ -979,28 +979,28 @@ export class DefaultStyleController implements IStyleController {
 		 */
 		const focusAndSelectionOutline = asCssValueWithDefault(styles.listFocusAndSelectionOutline, asCssValueWithDefault(styles.listSelectionOutline, styles.listFocusOutline ?? ''));
 		if (focusAndSelectionOutline) { // default: listFocusOutline
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused.selected { outline: 1px solid ${focusAndSelectionOutline}; outline-offset: -1px;}`);
+			content.push(`.monaco-list${suffix}:not(.pointer-focus) .monaco-list-row.focused.selected { outline: 1px solid ${focusAndSelectionOutline}; outline-offset: -1px;}`);
 		}
 
 		if (styles.listFocusOutline) { // default: set
 			content.push(`
 				.monaco-drag-image${suffix},
-				.monaco-list${suffix}:focus .monaco-list-row.focused,
+				.monaco-list${suffix}:not(.pointer-focus) .monaco-list-row.focused,
 				.context-menu-visible .monaco-list${suffix}.last-focused .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
 			`);
 		}
 
 		const inactiveFocusAndSelectionOutline = asCssValueWithDefault(styles.listSelectionOutline, styles.listInactiveFocusOutline ?? '');
 		if (inactiveFocusAndSelectionOutline) {
-			content.push(`.monaco-list${suffix} .monaco-list-row.focused.selected { outline: 1px dotted ${inactiveFocusAndSelectionOutline}; outline-offset: -1px; }`);
+			content.push(`.monaco-list${suffix}:not(.pointer-focus) .monaco-list-row.focused.selected { outline: 1px dotted ${inactiveFocusAndSelectionOutline}; outline-offset: -1px; }`);
 		}
 
 		if (styles.listSelectionOutline) { // default: activeContrastBorder
-			content.push(`.monaco-list${suffix} .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; outline-offset: -1px; }`);
+			content.push(`.monaco-list${suffix}:not(.pointer-focus) .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; outline-offset: -1px; }`);
 		}
 
 		if (styles.listInactiveFocusOutline) { // default: null
-			content.push(`.monaco-list${suffix} .monaco-list-row.focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`);
+			content.push(`.monaco-list${suffix}:not(.pointer-focus) .monaco-list-row.focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`);
 		}
 
 		if (styles.listHoverOutline) {  // default: activeContrastBorder
@@ -1558,6 +1558,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.mouseController = this.createMouseController(_options);
 		this.disposables.add(this.mouseController);
 
+		// Track pointer vs keyboard focus for outline visibility
+		this.disposables.add(addDisposableListener(this.view.domNode, 'pointerdown', () => {
+			this.view.domNode.classList.add('pointer-focus');
+		}));
+
 		this.onDidChangeFocus(this._onFocusChange, this, this.disposables);
 		this.onDidChangeSelection(this._onSelectionChange, this, this.disposables);
 
@@ -1805,6 +1810,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			if (index < 0 || index >= this.length) {
 				throw new ListError(this.user, `Invalid index ${index}`);
 			}
+		}
+
+		if (browserEvent && !isMouseEvent(browserEvent)) {
+			this.view.domNode.classList.remove('pointer-focus');
 		}
 
 		this.focus.set(indexes, browserEvent);
