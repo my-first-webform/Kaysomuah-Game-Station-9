@@ -61,10 +61,15 @@
 }
 
 /* Ensure iframe containers in pane-body render above sidebar z-index */
-.monaco-workbench > div[data-keybinding-context],
 .monaco-workbench > div[data-keybinding-context] {
 	z-index: 50 !important;
 }
+
+/* Ensure in-editor pane iframes render below sidebar z-index */
+.monaco-workbench > div[data-parent-flow-to-element-id] {
+	z-index: 0 !important;
+}
+
 
 /* Ensure webview containers render above sidebar z-index */
 .monaco-workbench .part.sidebar .webview,
