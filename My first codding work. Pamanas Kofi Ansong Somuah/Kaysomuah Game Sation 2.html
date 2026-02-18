@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Game Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(to right, #141e30, #243b55);
+    color: white;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+.content { flex: 1; padding-top: 80px; }
+.play-section { margin-bottom: 20px; }
+.play-btn { padding: 15px 30px; background-color: #ff9800; color: white; text-decoration: none; border-radius: 8px; font-size: 18px; transition: 0.3s; }
+.play-btn:hover { background-color: #e68900; }
+.dashboard { text-align: center; padding: 20px; }
+.stats { display: flex; justify-content: center; gap: 40px; font-size: 18px; margin: 10px 0; }
+.menu button { padding: 10px 20px; margin: 5px; border: none; border-radius: 8px; background: #00c3ff; color: white; cursor: pointer; }
+.menu button:hover { background: #0099cc; }
+#gameArea { margin: 20px auto; max-width: 500px; }
+input { padding: 8px; width: 80px; text-align: right; border-radius: 5px; border: none; margin-top: 10px; }
+button.game-btn { padding: 10px 20px; margin-right: 10px; border-radius: 8px; border: none; background: orange; color: white; cursor: pointer; }
+button.game-btn:hover { background: darkorange; }
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .content { padding-top: 40px; }
+    header, .dashboard { padding: 10px; }
+    .stats { flex-direction: column; gap: 8px; font-size: 16px; }
+    .menu { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; }
+    .menu button { width: 100%; padding: 14px; font-size: 16px; }
+    #gameArea { width: 95%; padding: 10px; box-sizing: border-box; }
+    input { width: 100%; text-align: left; }
+    .play-btn { padding: 14px 18px; font-size: 16px; }
+    button.game-btn { width: 100%; margin-right: 0; padding: 14px; }
+}
+</style>
+</head>
+<body>
+
+<div class="content">
+<h1>Welcome to My Website 🎮</h1>
+<p>Click below to play a fun game!</p>
+</div>
+
+<div class="play-section">
+<a href="#dashboard" class="play-btn">🎮 Play Game</a>
+</div>
+
+<div class="dashboard" id="dashboard">
+<h1>🎮 Game Dashboard</h1>
+
+<div class="stats">
+    <div>⏳ Time: <span id="time">30</span>s</div>
+    <div>⭐ Score: <span id="score">0</span></div>
+</div>
+
+<div class="menu">
+    <button onclick="showGame('guess')">Guess Game</button>
+    <button onclick="showGame('click')">Click Speed</button>
+    <button onclick="showGame('math')">Math Game</button>
+    <button onclick="showGame('stem')">🏆 STEM Mode</button>
+    <button onclick="showGame('science')">🔬 Science Quiz</button>
+    <button onclick="showGame('social')">🌍 Social Studies Quiz</button>
+    <button onclick="showGame('english')">📖 English Quiz</button>
+    <button onclick="showGame('gk')">🌐 General Knowledge Quiz</button>
+    <button onclick="showGame('mathHard')">🧮 Math Hard</button>
+    <button onclick="showGame('trivia')">🎲 Random Trivia</button>
+</div>
+</div>
+
+<hr>
+
+<div id="gameArea"><p>Select a game to start!</p></div>
+
+<script>
+let score = 0;
+let timeLeft = 30;
+let timer;
+
+/* TIMER */
+function startTimer() {
+    timeLeft = 30;
+    document.getElementById("time").textContent = timeLeft;
+    clearInterval(timer);
+    timer = setInterval(() => {
+        timeLeft--;
+        document.getElementById("time").textContent = timeLeft;
+        if (timeLeft <= 0) {
+            clearInterval(timer);
+            alert("⏰ Time's Up! Final Score: " + score);
+        }
+    }, 1000);
+}
+
+/* SCORE */
+function updateScore(points) {
+    score += points;
+    document.getElementById("score").textContent = score;
+}
+
+/* SHOW GAME */
+function showGame(type) {
+    startTimer();
+    if (type === "click") startClickGame();
+    if (type === "math") startMathGame();
+    if (type === "stem") startSTEMMode();
+    if (type === "guess") startGuessGame();
+    if (type === "science") startScienceQuiz();
+    if (type === "social") startSocialQuiz();
+    if (type === "english") startEnglishQuiz();
+    if (type === "gk") startGKQuiz();
+    if (type === "mathHard") startMathHard();
+    if (type === "trivia") startTrivia();
+}
+
+/* CLICK SPEED */
+function startClickGame() {
+    document.getElementById("gameArea").innerHTML = `
+        <h2>Click Speed Game</h2>
+        <button class="game-btn" onclick="updateScore(1)">CLICK ME!</button>
+        <p>Each click = 1 point</p>
+    `;
+}
+
+/* MATH GAME */
+function startMathGame() { generateMathGame(); }
+function generateMathGame() {
+    let num1 = Math.floor(Math.random() * 10);
+    let num2 = Math.floor(Math.random() * 10);
+    let answer = num1 + num2;
+    document.getElementById("gameArea").innerHTML = `
+        <h2>Math Game</h2>
+        <p>${num1} + ${num2} = ?</p>
+        <input type="number" id="mathInput">
+        <button class="game-btn" onclick="
+            if(parseInt(document.getElementById('mathInput').value) === ${answer}) {
+                updateScore(5); alert('Correct!'); generateMathGame();
+            } else { alert('Wrong!'); }
+        ">Submit</button>
+    `;
+}
+
+/* GUESS GAME */
+function startGuessGame() {
+    let randomNumber = Math.floor(Math.random() * 10) + 1;
+    document.getElementById("gameArea").innerHTML = `
+        <h2>Guess The Number (1-10)</h2>
+        <input type="number" id="guessInput" min="1" max="10">
+        <button class="game-btn" onclick="
+            let guess = parseInt(document.getElementById('guessInput').value);
+            if(guess === ${randomNumber}) { updateScore(10); alert('🎉 Correct!'); }
+            else { alert('❌ Try Again!'); }
+        ">Submit</button>
+    `;
+}
+
+/* STEM MODE */
+let stemAnswer, tolerance = 0.01;
+function startSTEMMode() { generateSTEMQuestion(); }
+function generateSTEMQuestion() {
+    let types = ["algebra","trig","log","statistics"];
+    let type = types[Math.floor(Math.random()*types.length)];
+    let questionText="";
+    if(type==="algebra"){ let x=Math.floor(Math.random()*10)+1,a=Math.floor(Math.random()*5)+1,b=Math.floor(Math.random()*10)+1; stemAnswer=x; questionText=`${a}x - ${b} = ${a+1}x - ${b+x}`;}
+    if(type==="trig"){ let angles=[30,45,60]; let angle=angles[Math.floor(Math.random()*angles.length)]; stemAnswer=angle===30?0.5:angle===45?0.71:0.87; questionText=`sin(${angle}°) ≈ ? (2 decimal places)`;}
+    if(type==="log"){ let power=Math.floor(Math.random()*3)+2; stemAnswer=power; questionText=`log₁₀(${Math.pow(10,power)}) = ?`;}
+    if(type==="statistics"){ let n1=Math.floor(Math.random()*20)+1,n2=Math.floor(Math.random()*20)+1,n3=Math.floor(Math.random()*20)+1; stemAnswer=(n1+n2+n3)/3; questionText=`Find the mean of ${n1}, ${n2}, ${n3}`;}
+    document.getElementById("gameArea").innerHTML = `
+        <h2>🏆 STEM Competition Mode</h2>
+        <p style="font-size:22px;">${questionText}</p>
+        <input type="number" id="stemInput" step="any">
+        <button class="game-btn" onclick="checkSTEMAnswer()">Submit</button>
+        <p id="stemResult"></p>
+    `;
+}
+function checkSTEMAnswer() {
+    let userAnswer=parseFloat(document.getElementById("stemInput").value);
+    let result=document.getElementById("stemResult");
+    if(Math.abs(userAnswer-stemAnswer)<tolerance){ result.textContent="🔥 Correct!"; result.style.color="lightgreen"; updateScore(30); generateSTEMQuestion(); }
+    else{ result.textContent="❌ Incorrect!"; result.style.color="red"; }
+}
+
+/* SCIENCE QUIZ */
+const scienceQuestions=[{q:"Water's chemical formula?",a:"H2O"},{q:"Speed of light in vacuum (m/s)?",a:"299792458"},{q:"Planet known as Red Planet?",a:"Mars"}];
+function startScienceQuiz(){ let rand=scienceQuestions[Math.floor(Math.random()*scienceQuestions.length)]; document.getElementById("gameArea").innerHTML=`<h2>🔬 Science Quiz</h2><p>${rand.q}</p><input type="text" id="scienceInput"><button class="game-btn" onclick="if(document.getElementById('scienceInput').value.trim().toLowerCase() === '${rand.a.toLowerCase()}'){updateScore(10);alert('✅ Correct!');startScienceQuiz();} else {alert('❌ Wrong!');}">Submit</button>`; }
+
+/* SOCIAL STUDIES */
+const socialQuestions=[{q:"Capital of Ghana?",a:"Accra"},{q:"First president of USA?",a:"George Washington"},{q:"Continent Australia is part of?",a:"Australia"}];
+function startSocialQuiz(){ let rand=socialQuestions[Math.floor(Math.random()*socialQuestions.length)]; document.getElementById("gameArea").innerHTML=`<h2>🌍 Social Studies Quiz</h2><p>${rand.q}</p><input type="text" id="socialInput"><button class="game-btn" onclick="if(document.getElementById('socialInput').value.trim().toLowerCase() === '${rand.a.toLowerCase()}'){updateScore(10);alert('✅ Correct!');startSocialQuiz();} else {alert('❌ Wrong!');}">Submit</button>`; }
+
+/* ENGLISH QUIZ */
+const englishQuestions=[{q:"Synonym of 'Happy'?",a:"Joyful"},{q:"Antonym of 'Cold'?",a:"Hot"},{q:"Plural of 'Mouse'?",a:"Mice"}];
+function startEnglishQuiz(){ let rand=englishQuestions[Math.floor(Math.random()*englishQuestions.length)]; document.getElementById("gameArea").innerHTML=`<h2>📖 English Quiz</h2><p>${rand.q}</p><input type="text" id="englishInput"><button class="game-btn" onclick="if(document.getElementById('englishInput').value.trim().toLowerCase() === '${rand.a.toLowerCase()}'){updateScore(10);alert('✅ Correct!');startEnglishQuiz();} else {alert('❌ Wrong!');}">Submit</button>`; }
+
+/* GENERAL KNOWLEDGE */
+const gkQuestions=[{q:"Largest ocean?",a:"Pacific"},{q:"Year UN founded?",a:"1945"},{q:"Fastest land animal?",a:"Cheetah"}];
+function startGKQuiz(){ let rand=gkQuestions[Math.floor(Math.random()*gkQuestions.length)]; document.getElementById("gameArea").innerHTML=`<h2>🌐 General Knowledge</h2><p>${rand.q}</p><input type="text" id="gkInput"><button class="game-btn" onclick="if(document.getElementById('gkInput').value.trim().toLowerCase() === '${rand.a.toLowerCase()}'){updateScore(10);alert('✅ Correct!');startGKQuiz();} else {alert('❌ Wrong!');}">Submit</button>`; }
+
+/* HARD MATH */
+function startMathHard(){ let num1=Math.floor(Math.random()*50)+1,num2=Math.floor(Math.random()*50)+1,op=['+','-','*'][Math.floor(Math.random()*3)],answer=op==='+'?num1+num2:op==='-'?num1-num2:num1*num2; document.getElementById("gameArea").innerHTML=`<h2>🧮 Hard Math</h2><p>${num1} ${op} ${num2} = ?</p><input type="number" id="mathHardInput"><button class="game-btn" onclick="if(parseInt(document.getElementById('mathHardInput').value)===${answer}){updateScore(15);alert('✅ Correct!');startMathHard();} else{alert('❌ Wrong!');}">Submit</button>`; }
+
+/* RANDOM TRIVIA */
+const triviaQuestions=[{q:"Which planet is closest to the Sun?",a:"Mercury"},{q:"Which language has most native speakers?",a:"Mandarin"},{q:"Smallest country in the world?",a:"Vatican"}];
+function startTrivia(){ let rand=triviaQuestions[Math.floor(Math.random()*triviaQuestions.length)]; document.getElementById("gameArea").innerHTML=`<h2>🎲 Random Trivia</h2><p>${rand.q}</p><input type="text" id="triviaInput"><button class="game-btn" onclick="if(document.getElementById('triviaInput').value.trim().toLowerCase() === '${rand.a.toLowerCase()}'){updateScore(10);alert('✅ Correct!');startTrivia();} else{alert('❌ Wrong!');}">Submit</button>`; }
+</script>
+
+</body>
+</html>
