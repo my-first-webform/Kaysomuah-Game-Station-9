@@ -2638,43 +2638,54 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		display: flex;
 		width: 100%;
 		position: relative;
+		align-items: center;
+		gap: 4px;
+		margin-top: 0;
+		margin-bottom: 8px;
 
-		.checkpoint-divider {
-			border-top: 1px dashed var(--vscode-chat-checkpointSeparator);
-			margin: 15px 0;
-			width: 100%;
-			height: 0;
+		.checkpoint-line-left,
+		.checkpoint-line-right {
+			flex: 1;
+			height: 1px;
+			background-color: var(--vscode-chat-requestBorder, var(--vscode-input-background));
 		}
 
-		.codicon-container {
-			color: var(--vscode-descriptionForeground);
-			padding-right: 4px;
-			display: flex;
-			align-items: center;
-			gap: 4px;
+		.checkpoint-line-left {
+			mask-image: linear-gradient(to right, transparent, black);
+			-webkit-mask-image: linear-gradient(to right, transparent, black);
 		}
 
-		.codicon-container .codicon {
-			font-size: 14px;
-			color: var(--vscode-chat-checkpointSeparator);
+		.checkpoint-line-right {
+			mask-image: linear-gradient(to left, transparent, black);
+			-webkit-mask-image: linear-gradient(to left, transparent, black);
 		}
 
 		.monaco-toolbar {
-			opacity: 0;
 			height: fit-content;
 			width: fit-content;
 			user-select: none;
-			position: absolute;
-			top: 4px;
-			margin-left: 25px;
-			background: var(--vscode-sideBar-background);
+			flex-shrink: 0;
 		}
 
 		.monaco-toolbar .action-label {
-			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
+			font-size: 12px;
+			line-height: 18px;
+			color: var(--vscode-descriptionForeground);
+			border: 1px solid transparent;
+			background-color: transparent;
 			padding: 1px 5px;
+		}
+
+		.monaco-toolbar .action-label:hover {
+			color: var(--vscode-foreground);
+			border-color: var(--vscode-chat-requestBorder, var(--vscode-input-background));
 			background-color: var(--vscode-sideBar-background);
 		}
+	}
+
+	.checkpoint-container {
+		opacity: 0;
+		transition: opacity 0.1s ease-in-out;
 	}
 
 	.checkpoint-restore-container {
@@ -2682,21 +2693,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.checkpoint-label-text {
 			font-size: 12px;
+			line-height: 18px;
 			color: var(--vscode-descriptionForeground);
-			background-color: var(--vscode-sideBar-background);
-			padding: 4px;
 			display: flex;
 			align-items: center;
-			gap: 4px;
-			position: absolute;
-			margin-left: 71px;
-			margin-top: 2px;
+			flex-shrink: 0;
+			padding: 1px 5px;
+			border: 1px solid transparent;
+		}
+
+		.checkpoint-dot-separator {
+			font-size: 12px;
+			line-height: 18px;
+			color: var(--vscode-descriptionForeground);
+			flex-shrink: 0;
 		}
 	}
 
-	.checkpoint-container .monaco-toolbar:focus-within,
-	.checkpoint-restore-container .monaco-toolbar,
-	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container .monaco-toolbar {
+	.checkpoint-container:focus-within,
+	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container {
 		opacity: 1;
 	}
 
@@ -2735,6 +2750,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.request-hover:not(.has-no-actions) {
 			display: block;
+		}
+
+		.checkpoint-container {
+			opacity: 1;
 		}
 	}
 
