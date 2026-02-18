@@ -5,10 +5,10 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact, lm, LanguageModelChatMessage, CancellationTokenSource, CancellationToken } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
+import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref, Change } from './api/git';
 import { Git, GitError, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
@@ -20,6 +20,7 @@ import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './typings/git-base';
 import { CloneManager } from './cloneManager';
+import { buildChangeSummary, buildBranchNamePrompt, cleanBranchNameResponse, truncateDiff, deduplicateChanges } from './branchNameGenerator';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -2961,12 +2962,117 @@ export class CommandCenter {
 		return '';
 	}
 
+	private async generateAIBranchName(repository: Repository, branchWhitespaceChar: string, branchPrefix: string, token?: CancellationToken): Promise<string> {
+		const models = await lm.selectChatModels({ family: 'gpt-4o' });
+		if (models.length === 0) {
+			// Fallback: try any available model
+			const allModels = await lm.selectChatModels();
+			if (allModels.length === 0) {
+				window.showWarningMessage(l10n.t('No language models available. Please ensure a language model extension is installed.'));
+				return '';
+			}
+			models.push(allModels[0]);
+		}
+
+		const model = models[0];
+
+		// Gather file changes (both staged and working tree)
+		const [stagedChanges, workingTreeChanges] = await Promise.all([
+			repository.diffIndexWithHEAD() as Promise<Change[]>,
+			repository.diffWithHEAD() as Promise<Change[]>
+		]);
+
+		const allChanges = deduplicateChanges([...stagedChanges, ...workingTreeChanges]);
+
+		if (allChanges.length === 0) {
+			window.showInformationMessage(l10n.t('No file changes detected to generate a branch name from.'));
+			return '';
+		}
+
+		// Build a summary of changes
+		const changeSummary = buildChangeSummary(
+			allChanges.map(change => ({
+				status: change.status,
+				fileName: workspace.asRelativePath(change.uri),
+				originalPath: workspace.asRelativePath(change.originalUri)
+			}))
+		);
+
+		// Get a short diff for additional context (limited to avoid token overflow)
+		let diffSnippet = '';
+		try {
+			const rawDiff = await repository.diff(true); // staged diff
+			const workingDiff = await repository.diff(false); // unstaged diff
+			const combinedDiff = [rawDiff, workingDiff].filter(Boolean).join('\n');
+			diffSnippet = truncateDiff(combinedDiff);
+		} catch {
+			// Diff retrieval is best-effort
+		}
+
+		const previousNames: string[] = [];
+
+		// 3 attempts to generate a unique branch name
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const prompt = buildBranchNamePrompt({
+				changeSummary,
+				diffSnippet,
+				branchWhitespaceChar,
+				branchPrefix,
+				previousNames
+			});
+
+			try {
+				const response = await model.sendRequest(
+					[LanguageModelChatMessage.User(prompt)],
+					{},
+					token
+				);
+
+				let branchName = '';
+				for await (const chunk of response.text) {
+					branchName += chunk;
+				}
+
+				branchName = cleanBranchNameResponse(branchName);
+				const sanitized = sanitizeBranchName(branchName, branchWhitespaceChar);
+
+				if (!sanitized) {
+					continue;
+				}
+
+				const fullName = `${branchPrefix}${sanitized}`;
+
+				// Check for existing branch conflict
+				const conflictRefs = await repository.getRefs({ pattern: `refs/heads/${fullName}` });
+				if (conflictRefs.length === 0) {
+					return sanitized;
+				}
+
+				previousNames.push(branchName);
+			} catch (err) {
+				if (token?.isCancellationRequested) {
+					return '';
+				}
+				window.showWarningMessage(l10n.t('Failed to generate AI branch name: {0}', String(err)));
+				return '';
+			}
+		}
+
+		// All attempts conflicted - return the last generated name anyway
+		if (previousNames.length > 0) {
+			return sanitizeBranchName(previousNames[previousNames.length - 1], branchWhitespaceChar);
+		}
+
+		return '';
+	}
+
 	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
+		const branchAINameEnabled = config.get<boolean>('branchAIName.enable', false);
 		const refs = await repository.getRefs({ pattern: 'refs/heads' });
 
 		if (defaultName) {
@@ -2993,15 +3099,7 @@ export class CommandCenter {
 			}
 
 			if (validateName.test(sanitizedName)) {
-				// If the sanitized name that we will use is different than what is
-				// in the input box, show an info message to the user informing them
-				// the branch name that will be used.
-				return name === sanitizedName
-					? undefined
-					: {
-						message: l10n.t('The new branch will be "{0}"', sanitizedName),
-						severity: InputBoxValidationSeverity.Info
-					};
+				return undefined;
 			}
 
 			return l10n.t('Branch name needs to match regex: {0}', branchValidationRegex);
@@ -3013,13 +3111,27 @@ export class CommandCenter {
 		inputBox.placeholder = l10n.t('Branch name');
 		inputBox.prompt = l10n.t('Please provide a new branch name');
 
-		inputBox.buttons = branchRandomNameEnabled ? [
-			{
-				iconPath: new ThemeIcon('refresh'),
-				tooltip: l10n.t('Regenerate Branch Name'),
-				location: QuickInputButtonLocation.Inline
-			}
-		] : [];
+		const regenerateButton: QuickInputButton & { location: QuickInputButtonLocation } = {
+			iconPath: new ThemeIcon('refresh'),
+			tooltip: l10n.t('Regenerate Branch Name'),
+			location: QuickInputButtonLocation.Inline
+		};
+
+		const aiGenerateButton: QuickInputButton & { location: QuickInputButtonLocation } = {
+			iconPath: new ThemeIcon('sparkle'),
+			tooltip: l10n.t('Generate Branch Name'),
+			location: QuickInputButtonLocation.Inline
+		};
+
+		const buttons: QuickInputButton[] = [];
+		if (branchRandomNameEnabled) {
+			buttons.push(regenerateButton);
+		}
+		if (branchAINameEnabled) {
+			buttons.push(aiGenerateButton);
+		}
+
+		inputBox.buttons = buttons;
 
 		inputBox.value = initialValue ?? await getBranchName();
 		inputBox.valueSelection = getValueSelection(inputBox.value);
@@ -3028,15 +3140,36 @@ export class CommandCenter {
 
 		inputBox.show();
 
+		const aiCts = new CancellationTokenSource();
+		disposables.push(aiCts);
+
 		const branchName = await new Promise<string | undefined>((resolve) => {
-			disposables.push(inputBox.onDidHide(() => resolve(undefined)));
+			disposables.push(inputBox.onDidHide(() => {
+				aiCts.cancel();
+				resolve(undefined);
+			}));
 			disposables.push(inputBox.onDidAccept(() => resolve(inputBox.value)));
 			disposables.push(inputBox.onDidChangeValue(value => {
 				inputBox.validationMessage = getValidationMessage(value);
 			}));
-			disposables.push(inputBox.onDidTriggerButton(async () => {
-				inputBox.value = await getBranchName();
-				inputBox.valueSelection = getValueSelection(inputBox.value);
+			disposables.push(inputBox.onDidTriggerButton(async (button) => {
+				if (button === aiGenerateButton) {
+					inputBox.busy = true;
+					inputBox.enabled = false;
+					try {
+						const aiName = await this.generateAIBranchName(repository, branchWhitespaceChar, branchPrefix, aiCts.token);
+						if (aiName) {
+							inputBox.value = `${branchPrefix}${aiName}`;
+							inputBox.valueSelection = getValueSelection(inputBox.value);
+						}
+					} finally {
+						inputBox.busy = false;
+						inputBox.enabled = true;
+					}
+				} else {
+					inputBox.value = await getBranchName();
+					inputBox.valueSelection = getValueSelection(inputBox.value);
+				}
 			}));
 		});
 

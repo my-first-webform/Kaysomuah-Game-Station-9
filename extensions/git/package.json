@@ -3312,6 +3312,13 @@
           ],
           "scope": "resource"
         },
+        "git.branchAIName.enable": {
+          "type": "boolean",
+          "description": "%config.branchAINameEnable%",
+          "default": false,
+          "scope": "resource",
+          "tags": ["experimental"]
+        },
         "git.confirmSync": {
           "type": "boolean",
           "description": "%config.confirmSync%",
