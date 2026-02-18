@@ -90,10 +90,6 @@ parameters:
     displayName: "Release build if successful"
     type: boolean
     default: false
-  - name: VSCODE_COMPILE_ONLY
-    displayName: "Run Compile stage exclusively"
-    type: boolean
-    default: false
   - name: VSCODE_STEP_ON_IT
     displayName: "Skip tests"
     type: boolean
@@ -121,7 +117,7 @@ variables:
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
-    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}
+    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_STEP_ON_IT
@@ -190,14 +186,6 @@ extends:
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     stages:
-      - stage: Compile
-        pool:
-          name: AcesShared
-          os: macOS
-          demands:
-            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
-        jobs:
-          - template: build/azure-pipelines/product-compile.yml@self
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], 'true') }}:
         - stage: ValidationChecks
@@ -257,7 +245,7 @@ extends:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
+      - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
         - stage: node_modules
           dependsOn: []
           jobs:
@@ -283,7 +271,7 @@ extends:
                 VSCODE_ARCH: x64
             - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
+      - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
         - stage: APIScan
           dependsOn: []
           pool:
@@ -297,10 +285,9 @@ extends:
                     VSCODE_ARCH: x64
                     VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-      - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
           dependsOn:
-            - Compile
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
@@ -347,10 +334,9 @@ extends:
                   VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
                   VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
-      - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
           dependsOn:
-            - Compile
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
@@ -363,6 +349,7 @@ extends:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_TEST_SUITE: Electron
+                  VSCODE_RUN_CHECKS: true
               - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -385,6 +372,7 @@ extends:
                   VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
+                  VSCODE_RUN_CHECKS: true
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
               - template: build/azure-pipelines/linux/product-build-linux.yml@self
@@ -402,10 +390,9 @@ extends:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
         - stage: Alpine
-          dependsOn:
-            - Compile
+          dependsOn: []
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
               - template: build/azure-pipelines/alpine/product-build-alpine.yml@self
@@ -424,10 +411,9 @@ extends:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-      - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
         - stage: macOS
           dependsOn:
-            - Compile
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
@@ -443,6 +429,7 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_TEST_SUITE: Electron
+                  VSCODE_RUN_COMPILE_EXTRAS: true
               - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -466,6 +453,7 @@ extends:
                   VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_RUN_COMPILE_EXTRAS: true
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
               - template: build/azure-pipelines/darwin/product-build-darwin-universal.yml@self
@@ -476,10 +464,9 @@ extends:
                   VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
                   VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
         - stage: Web
-          dependsOn:
-            - Compile
+          dependsOn: []
           jobs:
             - template: build/azure-pipelines/web/product-build-web.yml@self
 

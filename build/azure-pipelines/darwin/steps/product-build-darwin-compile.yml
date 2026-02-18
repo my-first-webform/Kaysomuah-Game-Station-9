@@ -12,6 +12,9 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: VSCODE_RUN_COMPILE_EXTRAS
+    type: boolean
+    default: false
 
 steps:
   - template: ../../common/checkout.yml@self
@@ -29,15 +32,6 @@ steps:
       azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
-
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
-
-  - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-    displayName: Extract compilation output
 
   - script: node build/setup-npm-registry.ts $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -116,6 +110,68 @@ steps:
     displayName: Mixin distro quality
 
   - template: ../../common/install-builtin-extensions.yml@self
+
+  - script: npm exec -- gulp core-ci
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Compile
+
+  - script: |
+      set -e
+
+      [ -d "out-build" ] || { echo "ERROR: out-build folder is missing" >&2; exit 1; }
+      [ -n "$(find out-build -mindepth 1 2>/dev/null | head -1)" ] || { echo "ERROR: out-build folder is empty" >&2; exit 1; }
+      echo "out-build exists and is not empty"
+
+      ls -d out-vscode-* >/dev/null 2>&1 || { echo "ERROR: No out-vscode-* folders found" >&2; exit 1; }
+      for folder in out-vscode-*; do
+        [ -d "$folder" ] || { echo "ERROR: $folder is missing" >&2; exit 1; }
+        [ -n "$(find "$folder" -mindepth 1 2>/dev/null | head -1)" ] || { echo "ERROR: $folder is empty" >&2; exit 1; }
+        echo "$folder exists and is not empty"
+      done
+
+      echo "All required compilation folders checked."
+    displayName: Validate compilation folders
+
+  - script: ./build/azure-pipelines/common/extract-telemetry.sh
+    displayName: Generate lists of telemetry events
+
+  - ${{ if eq(parameters.VSCODE_RUN_COMPILE_EXTRAS, true) }}:
+    - task: AzureCLI@2
+      displayName: Fetch secrets
+      inputs:
+        azureSubscription: vscode
+        scriptType: pscore
+        scriptLocation: inlineScript
+        addSpnToEnvironment: true
+        inlineScript: |
+          Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
+          Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
+          Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
+
+    - script: |
+        set -e
+        AZURE_STORAGE_ACCOUNT="vscodeweb" \
+        AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+        AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+        AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
+          node build/azure-pipelines/upload-sourcemaps.ts
+      displayName: Upload sourcemaps to Azure
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - script: |
+        set -e
+        npm run compile
+      displayName: Compile smoke test suites (non-OSS)
+      workingDirectory: test/smoke
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+    - script: |
+        set -e
+        npm run compile
+      displayName: Compile integration test suites (non-OSS)
+      workingDirectory: test/integration/browser
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc darwin

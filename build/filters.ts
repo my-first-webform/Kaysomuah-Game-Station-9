@@ -114,6 +114,8 @@ export const indentationFilter = Object.freeze<string[]>([
 	// except multiple specific files
 	'!**/package.json',
 	'!**/package-lock.json',
+	'!**/.ralph/**',
+	'!**/prd.json',
 
 	// except multiple specific folders
 	'!**/codicon/**',

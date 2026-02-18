@@ -37,18 +37,6 @@ steps:
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
-
-  - task: ExtractFiles@1
-    displayName: Extract compilation output
-    inputs:
-      archiveFilePatterns: "$(Build.ArtifactStagingDirectory)/compilation.tar.gz"
-      cleanDestinationFolder: false
-
   - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
@@ -118,6 +106,68 @@ steps:
     displayName: Mixin distro quality
 
   - template: ../../common/install-builtin-extensions.yml@self
+
+  - powershell: npm exec -- gulp core-ci
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Compile
+
+  - powershell: |
+      $ErrorActionPreference = "Stop"
+
+      if (-not (Test-Path "out-build")) { Write-Error "ERROR: out-build folder is missing"; exit 1 }
+      if ((Get-ChildItem "out-build" -Recurse | Measure-Object).Count -eq 0) { Write-Error "ERROR: out-build folder is empty"; exit 1 }
+      Write-Host "out-build exists and is not empty"
+
+      $folders = Get-ChildItem -Directory -Filter "out-vscode-*"
+      if ($folders.Count -eq 0) { Write-Error "ERROR: No out-vscode-* folders found"; exit 1 }
+      foreach ($folder in $folders) {
+        if ((Get-ChildItem $folder.FullName -Recurse | Measure-Object).Count -eq 0) { Write-Error "ERROR: $($folder.Name) is empty"; exit 1 }
+        Write-Host "$($folder.Name) exists and is not empty"
+      }
+
+      Write-Host "All required compilation folders checked."
+    displayName: Validate compilation folders
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      $extraction = "$env:BUILD_STAGINGDIRECTORY/extraction"
+      mkdir $extraction
+      Push-Location $extraction
+      exec { git clone --depth 1 https://github.com/microsoft/vscode-extension-telemetry.git }
+      exec { git clone --depth 1 https://github.com/microsoft/vscode-chrome-debug-core.git }
+      exec { git clone --depth 1 https://github.com/microsoft/vscode-node-debug2.git }
+      exec { git clone --depth 1 https://github.com/microsoft/vscode-node-debug.git }
+      exec { git clone --depth 1 https://github.com/microsoft/vscode-html-languageservice.git }
+      exec { git clone --depth 1 https://github.com/microsoft/vscode-json-languageservice.git }
+      exec { node "$env:BUILD_SOURCESDIRECTORY/node_modules/@vscode/telemetry-extractor/out/extractor.js" --sourceDir "$env:BUILD_SOURCESDIRECTORY" --excludedDir "$env:BUILD_SOURCESDIRECTORY/extensions" --outputDir . --applyEndpoints }
+      exec { node "$env:BUILD_SOURCESDIRECTORY/node_modules/@vscode/telemetry-extractor/out/extractor.js" --config "$env:BUILD_SOURCESDIRECTORY/build/azure-pipelines/common/telemetry-config.json" -o . }
+      mkdir -Force "$env:BUILD_SOURCESDIRECTORY/.build/telemetry"
+      if (Test-Path declarations-resolved.json) {
+        Move-Item declarations-resolved.json "$env:BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-core.json"
+      } else {
+        Write-Host "##vso[task.logissue type=warning]declarations-resolved.json not found"
+      }
+      if (Test-Path config-resolved.json) {
+        Move-Item config-resolved.json "$env:BUILD_SOURCESDIRECTORY/.build/telemetry/telemetry-extensions.json"
+      } else {
+        Write-Host "##vso[task.logissue type=warning]config-resolved.json not found"
+      }
+      Pop-Location
+      Remove-Item -Recurse -Force $extraction
+    displayName: Generate lists of telemetry events
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - powershell: npm run compile
+      displayName: Compile smoke test suites (non-OSS)
+      workingDirectory: test/smoke
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+    - powershell: npm run compile
+      displayName: Compile integration test suites (non-OSS)
+      workingDirectory: test/integration/browser
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - powershell: |

@@ -72,18 +72,8 @@ extends:
       ubuntu-2004-arm64:
         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
     stages:
-      - stage: Compile
-        pool:
-          name: AcesShared
-          os: macOS
-          demands:
-            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
-        jobs:
-          - template: build/azure-pipelines/product-compile.yml@self
-
       - stage: macOS
-        dependsOn:
-          - Compile
+        dependsOn: []
         pool:
           name: AcesShared
           os: macOS
@@ -96,6 +86,7 @@ extends:
             parameters:
               VSCODE_CIBUILD: true
               VSCODE_TEST_SUITE: Electron
+              VSCODE_RUN_COMPILE_EXTRAS: true
           - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
             parameters:
               VSCODE_CIBUILD: true

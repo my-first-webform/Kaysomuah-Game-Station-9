@@ -3,6 +3,9 @@ parameters:
     type: boolean
   - name: VSCODE_TEST_SUITE
     type: string
+  - name: VSCODE_RUN_COMPILE_EXTRAS
+    type: boolean
+    default: false
 
 jobs:
   - job: macOS${{ parameters.VSCODE_TEST_SUITE }}
@@ -38,6 +41,7 @@ jobs:
         parameters:
           VSCODE_ARCH: arm64
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
+          VSCODE_RUN_COMPILE_EXTRAS: ${{ parameters.VSCODE_RUN_COMPILE_EXTRAS }}
           ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Electron') }}:
             VSCODE_RUN_ELECTRON_TESTS: true
           ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Browser') }}:

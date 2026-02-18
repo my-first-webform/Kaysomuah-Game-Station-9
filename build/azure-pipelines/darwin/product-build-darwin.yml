@@ -12,6 +12,9 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: VSCODE_RUN_COMPILE_EXTRAS
+    type: boolean
+    default: false
 
 jobs:
   - job: macOS_${{ parameters.VSCODE_ARCH }}
@@ -84,3 +87,4 @@ jobs:
           VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
           VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
           VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+          VSCODE_RUN_COMPILE_EXTRAS: ${{ parameters.VSCODE_RUN_COMPILE_EXTRAS }}

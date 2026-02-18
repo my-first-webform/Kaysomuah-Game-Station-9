@@ -29,6 +29,8 @@ async function main(buildDir?: string) {
 		'**/CodeResources',
 		'**/Credits.rtf',
 		'**/policies/{*.mobileconfig,**/*.plist}',
+		'**/telemetry-core.json',
+		'**/telemetry-extensions.json',
 	];
 
 	await makeUniversalApp({
