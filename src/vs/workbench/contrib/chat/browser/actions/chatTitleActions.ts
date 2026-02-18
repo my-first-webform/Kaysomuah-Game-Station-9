@@ -9,11 +9,12 @@ import { basename } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdits.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
@@ -25,8 +26,15 @@ import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '.
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
+import { triggerConfettiAnimation, triggerFloatingIconsAnimation, triggerPulseWaveAnimation, triggerRadiantLinesAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
+export const MarkHelpfulActionId = 'workbench.action.chat.markHelpful';
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
 const enableFeedbackConfig = 'config.telemetry.feedback.enabled';
 
@@ -75,6 +83,31 @@ export function registerChatTitleActions() {
 			});
 			item.setVote(ChatAgentVoteDirection.Up);
 			item.setVoteDownReason(undefined);
+
+			const configurationService = accessor.get(IConfigurationService);
+			const animationStyle = configurationService.getValue<string>('chat.thumbsUpAnimation');
+			if (animationStyle && animationStyle !== 'off') {
+				const accessibilityService = accessor.get(IAccessibilityService);
+				if (!accessibilityService.isMotionReduced()) {
+					const button = ChatVoteUpButton.getButtonElement(item);
+					if (button) {
+						switch (animationStyle) {
+							case 'confetti':
+								triggerConfettiAnimation(button);
+								break;
+							case 'floatingThumbs':
+								triggerFloatingIconsAnimation(button, Codicon.thumbsup);
+								break;
+							case 'pulseWave':
+								triggerPulseWaveAnimation(button);
+								break;
+							case 'radiantLines':
+								triggerRadiantLinesAnimation(button);
+								break;
+						}
+					}
+				}
+			}
 		}
 	});
 
@@ -341,6 +374,46 @@ export function registerChatTitleActions() {
 			}
 		}
 	});
+}
+
+/**
+ * Custom action view item for the thumbs-up button that tracks rendered button
+ * DOM elements for animation targeting.
+ */
+export class ChatVoteUpButton extends MenuEntryActionViewItem {
+
+	private static readonly _elementsByContext = new WeakMap<object, HTMLElement>();
+
+	static getButtonElement(context: object): HTMLElement | undefined {
+		return ChatVoteUpButton._elementsByContext.get(context);
+	}
+
+	constructor(
+		action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions | undefined,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+	) {
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		if (this._context) {
+			ChatVoteUpButton._elementsByContext.set(this._context as object, container);
+		}
+	}
+
+	override setActionContext(context: unknown): void {
+		super.setActionContext(context);
+		if (context && this.element) {
+			ChatVoteUpButton._elementsByContext.set(context as object, this.element);
+		}
+	}
 }
 
 interface MarkdownContent {
