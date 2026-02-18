@@ -98,6 +98,10 @@ parameters:
     displayName: "Skip tests"
     type: boolean
     default: false
+  - name: VSCODE_CIBUILD
+    displayName: "Build as CI (skip packaging, only build and test)"
+    type: boolean
+    default: false
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
@@ -119,7 +123,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_WEB
     value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
   - name: VSCODE_CIBUILD
-    value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
+    value: ${{ or(eq(parameters.VSCODE_CIBUILD, true), in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI')) }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}
   - name: VSCODE_SCHEDULEDBUILD
@@ -229,7 +233,6 @@ extends:
               - template: build/azure-pipelines/linux/product-build-linux-cli.yml@self
                 parameters:
                   VSCODE_ARCH: x64
-                  VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:

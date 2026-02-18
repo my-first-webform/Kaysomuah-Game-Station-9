@@ -186,21 +186,29 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build client
 
-  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
-        patterns: "**"
-        path: $(Build.ArtifactStagingDirectory)/cli
-      displayName: Download VS Code CLI
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+      patterns: "**"
+      path: $(Build.ArtifactStagingDirectory)/cli
+    displayName: Download VS Code CLI
 
+  - script: |
+      set -e
+      tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
+      CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
+      APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
+      mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
+    displayName: Mix in CLI
+
+  - ${{ if eq(parameters.VSCODE_CIBUILD, true) }}:
     - script: |
         set -e
-        tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
-        CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
-        APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
-        mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
-      displayName: Mix in CLI
+        npm run gulp "vscode-linux-$(VSCODE_ARCH)-check-deps"
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        VSCODE_SYSROOT_DIR: "$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-10.5.0"
+      displayName: Check package dependencies
 
   - script: |
       set -e

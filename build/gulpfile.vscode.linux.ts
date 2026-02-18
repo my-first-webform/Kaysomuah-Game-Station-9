@@ -280,6 +280,17 @@ function buildSnapPackage(arch: string) {
 	return () => exec('snapcraft', { cwd });
 }
 
+function checkPackageDependencies(arch: string) {
+	const binaryDir = '../VSCode-linux-' + arch;
+	const debArch = getDebPackageArch(arch);
+	const rpmArch = getRpmPackageArch(arch);
+
+	return async function () {
+		await getDependencies('deb', binaryDir, product.applicationName, debArch);
+		await getDependencies('rpm', binaryDir, product.applicationName, rpmArch);
+	};
+}
+
 const BUILD_TARGETS = [
 	{ arch: 'x64' },
 	{ arch: 'armhf' },
@@ -303,4 +314,7 @@ BUILD_TARGETS.forEach(({ arch }) => {
 	gulp.task(prepareSnapTask);
 	const buildSnapTask = task.define(`vscode-linux-${arch}-build-snap`, task.series(prepareSnapTask, buildSnapPackage(arch)));
 	gulp.task(buildSnapTask);
+
+	const checkDepsTask = task.define(`vscode-linux-${arch}-check-deps`, checkPackageDependencies(arch));
+	gulp.task(checkDepsTask);
 });
