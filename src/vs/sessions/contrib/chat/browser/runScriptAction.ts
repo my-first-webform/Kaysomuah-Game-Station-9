@@ -21,8 +21,8 @@ import { Menus } from '../../../browser/menus.js';
 // Storage keys
 const STORAGE_KEY_DEFAULT_RUN_ACTION = 'workbench.agentSessions.defaultRunAction';
 
-// Menu IDs - exported for use in auxiliary bar part
-export const RunScriptDropdownMenuId = MenuId.for('AgentSessionsRunScriptDropdown');
+// Menu IDs
+const RunScriptDropdownMenuId = MenuId.for('AgentSessionsRunScriptDropdown');
 
 // Action IDs
 const RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';

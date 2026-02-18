@@ -29,7 +29,6 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -44,6 +43,12 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, workspaceIcon, userIcon, extensionIcon } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeViewIcons.js';
+import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
+import { ICopilotSdkService, type ICopilotSessionMetadata } from '../../../../platform/copilotSdk/common/copilotSdkService.js';
+import { SdkChatViewPane, SdkChatViewId } from '../../../browser/widget/sdkChatViewPane.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
@@ -74,10 +79,16 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private newSessionButtonContainer: HTMLElement | undefined;
-	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: AgentSessionsControl | undefined;
 	private aiCustomizationContainer: HTMLElement | undefined;
 	private readonly shortcuts: IShortcutItem[] = [];
+
+	// SDK session list (used when --sessions-utility-process is active)
+	private readonly _useSdk: boolean;
+	private _sdkSessions: ICopilotSessionMetadata[] = [];
+	private _sdkSelectedSessionId: string | undefined;
+	private _sdkListContainer: HTMLElement | undefined;
+	private readonly _sdkListDisposables = this._register(new DisposableStore());
 
 	constructor(
 		options: IViewPaneOptions,
@@ -91,7 +102,6 @@ export class AgenticSessionsViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@ICommandService commandService: ICommandService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -99,8 +109,15 @@ export class AgenticSessionsViewPane extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@ICopilotSdkService private readonly copilotSdkService: ICopilotSdkService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		this._useSdk = environmentService.isSessionsUtilityProcess;
 
 		// Initialize shortcuts
 		this.shortcuts = [
@@ -129,6 +146,11 @@ export class AgenticSessionsViewPane extends ViewPane {
 			this.updateCounts();
 		}));
 
+		// SDK session lifecycle updates
+		if (this._useSdk) {
+			this._register(this.copilotSdkService.onSessionLifecycle(() => this._refreshSdkSessionList()));
+		}
+
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -142,6 +164,156 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 	private createControls(parent: HTMLElement): void {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
+
+		if (this._useSdk) {
+			this._createSdkControls(sessionsContainer);
+		} else {
+			this._createDefaultControls(sessionsContainer);
+		}
+
+		// AI Customization shortcuts (always shown)
+		this.aiCustomizationContainer = DOM.append(sessionsContainer, $('.ai-customization-shortcuts'));
+		this.createAICustomizationShortcuts(this.aiCustomizationContainer);
+	}
+
+	private _createSdkControls(sessionsContainer: HTMLElement): void {
+		const sessionsSection = DOM.append(sessionsContainer, $('.agent-sessions-section'));
+		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
+
+		// New Session Button
+		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
+		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
+		newSessionButton.label = localize('newSession', "New Session");
+		this._register(newSessionButton.onDidClick(() => {
+			const chatPane = this.viewsService.getViewWithId<SdkChatViewPane>(SdkChatViewId);
+			if (chatPane?.widget) {
+				chatPane.widget.newSession();
+				this._sdkSelectedSessionId = undefined;
+				this._renderSdkSessionList();
+			}
+		}));
+
+		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT);
+		if (keybinding) {
+			const keybindingHint = DOM.append(newSessionButton.element, $('span.new-session-keybinding-hint'));
+			keybindingHint.textContent = keybinding.getLabel() ?? '';
+		}
+
+		// SDK Sessions list
+		this._sdkListContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
+		this._refreshSdkSessionList();
+	}
+
+	private async _refreshSdkSessionList(): Promise<void> {
+		try {
+			this._sdkSessions = await this.copilotSdkService.listSessions();
+		} catch (err) {
+			this.logService.error('[SessionsViewPane] Failed to list SDK sessions:', err);
+			this._sdkSessions = [];
+		}
+		this._renderSdkSessionList();
+	}
+
+	private _renderSdkSessionList(): void {
+		if (!this._sdkListContainer) { return; }
+		this._sdkListDisposables.clear();
+		DOM.clearNode(this._sdkListContainer);
+
+		if (this._sdkSessions.length === 0) {
+			const empty = DOM.append(this._sdkListContainer, $('.sdk-session-list-empty'));
+			empty.textContent = localize('noSessions', "No sessions yet");
+			return;
+		}
+
+		for (const session of this._sdkSessions) {
+			const item = DOM.append(this._sdkListContainer, $('.sdk-session-item'));
+			item.tabIndex = 0;
+			item.setAttribute('role', 'listitem');
+			item.setAttribute('data-session-id', session.sessionId);
+			if (session.sessionId === this._sdkSelectedSessionId) { item.classList.add('selected'); }
+
+			const icon = DOM.append(item, $('span.sdk-session-icon'));
+			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.commentDiscussion));
+
+			const details = DOM.append(item, $('span.sdk-session-details'));
+			const label = DOM.append(details, $('span.sdk-session-label'));
+			label.textContent = session.summary || localize('untitledSession', "Untitled Session");
+
+			if (session.workspacePath || session.repository) {
+				const pathEl = DOM.append(details, $('span.sdk-session-path'));
+				pathEl.textContent = session.repository
+					? (session.branch ? `${session.repository} (${session.branch})` : session.repository)
+					: session.workspacePath ?? '';
+			}
+
+			if (session.modifiedTime || session.startTime) {
+				const timeEl = DOM.append(item, $('span.sdk-session-time'));
+				const date = new Date((session.modifiedTime ?? session.startTime)!);
+				timeEl.textContent = this._relativeTime(date);
+			}
+
+			// Delete button
+			const actions = DOM.append(item, $('span.sdk-session-actions'));
+			const deleteBtn = DOM.append(actions, $('button.sdk-session-action-btn')) as HTMLButtonElement;
+			deleteBtn.title = localize('deleteSession', "Delete Session");
+			DOM.append(deleteBtn, $('span')).classList.add(...ThemeIcon.asClassNameArray(Codicon.trash));
+			this._sdkListDisposables.add(DOM.addDisposableListener(deleteBtn, 'click', (e) => {
+				DOM.EventHelper.stop(e);
+				this._deleteSdkSession(session.sessionId);
+			}));
+
+			this._sdkListDisposables.add(DOM.addDisposableListener(item, 'click', () => this._selectSdkSession(session.sessionId)));
+			this._sdkListDisposables.add(DOM.addDisposableListener(item, 'keydown', (e: KeyboardEvent) => {
+				if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._selectSdkSession(session.sessionId); }
+			}));
+		}
+	}
+
+	private _selectSdkSession(sessionId: string): void {
+		this._sdkSelectedSessionId = sessionId;
+		if (this._sdkListContainer) {
+			for (const child of this._sdkListContainer.children) {
+				child.classList.toggle('selected', (child as HTMLElement).getAttribute('data-session-id') === sessionId);
+			}
+		}
+		const chatPane = this.viewsService.getViewWithId<SdkChatViewPane>(SdkChatViewId);
+		chatPane?.widget?.loadSession(sessionId);
+	}
+
+	private async _deleteSdkSession(sessionId: string): Promise<void> {
+		const session = this._sdkSessions.find(s => s.sessionId === sessionId);
+		const confirmation = await this.dialogService.confirm({
+			message: localize('deleteSdkSession.confirm', "Delete this session?"),
+			detail: session?.summary ?? session?.workspacePath ?? sessionId,
+			primaryButton: localize('deleteSession.confirm.button', "Delete"),
+			cancelButton: localize('cancel', "Cancel")
+		});
+		if (!confirmation.confirmed) {
+			return;
+		}
+		try { await this.copilotSdkService.deleteSession(sessionId); } catch { /* best-effort */ }
+		if (this._sdkSelectedSessionId === sessionId) {
+			this._sdkSelectedSessionId = undefined;
+			const chatPane = this.viewsService.getViewWithId<SdkChatViewPane>(SdkChatViewId);
+			chatPane?.widget?.newSession();
+		}
+		this._refreshSdkSessionList();
+	}
+
+	private _relativeTime(date: Date): string {
+		const diffMs = Date.now() - date.getTime();
+		if (diffMs <= 0) { return localize('justNow', "just now"); }
+		const diffMins = Math.floor(diffMs / 60000);
+		if (diffMins < 1) { return localize('justNow', "just now"); }
+		if (diffMins < 60) { return localize('minutesAgo', "{0}m ago", diffMins); }
+		const diffHours = Math.floor(diffMins / 60);
+		if (diffHours < 24) { return localize('hoursAgo', "{0}h ago", diffHours); }
+		const diffDays = Math.floor(diffHours / 24);
+		if (diffDays < 7) { return localize('daysAgo', "{0}d ago", diffDays); }
+		return date.toLocaleDateString();
+	}
+
+	private _createDefaultControls(sessionsContainer: HTMLElement): void {
 
 		// Sessions Filter (actions go to view title bar via menu registration)
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
@@ -169,8 +341,8 @@ export class AgenticSessionsViewPane extends ViewPane {
 		}
 
 		// Sessions Control
-		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
-		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
+		const sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
+		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, sessionsControlContainer, {
 			source: 'agentSessionsViewPane',
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
@@ -197,10 +369,6 @@ export class AgenticSessionsViewPane extends ViewPane {
 				}
 			}
 		}));
-
-		// AI Customization shortcuts (bottom, fixed height)
-		this.aiCustomizationContainer = DOM.append(sessionsContainer, $('.ai-customization-shortcuts'));
-		this.createAICustomizationShortcuts(this.aiCustomizationContainer);
 	}
 
 	private restoreLastSelectedSession(): void {
@@ -416,14 +584,6 @@ export class AgenticSessionsViewPane extends ViewPane {
 		super.focus();
 
 		this.sessionsControl?.focus();
-	}
-
-	refresh(): void {
-		this.sessionsControl?.refresh();
-	}
-
-	openFind(): void {
-		this.sessionsControl?.openFind();
 	}
 }
 

@@ -1,0 +1,623 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* SDK Chat Widget */
+
+.sdk-chat-widget {
+
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+	max-width: 950px;
+	margin: 0 auto;
+	width: 100%;
+	color: var(--vscode-interactive-session-foreground, var(--vscode-foreground));
+}
+
+/* Messages scroll area */
+.sdk-chat-messages {
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+/* Turn container (matches .interactive-item-container) */
+.sdk-chat-turn {
+	padding: 8px 20px;
+	display: flex;
+	flex-direction: column;
+	cursor: default;
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+/* Header (avatar + username) */
+.sdk-chat-header {
+	display: flex;
+	align-items: center;
+	margin-bottom: 8px;
+}
+
+.sdk-chat-header-user {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px;
+	margin: -2px;
+}
+
+.sdk-chat-avatar {
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	outline: 1px solid var(--vscode-chat-requestBorder, var(--vscode-widget-border));
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-chat-avatarBackground, var(--vscode-badge-background));
+}
+
+.sdk-chat-avatar .codicon {
+	color: var(--vscode-chat-avatarForeground, var(--vscode-badge-foreground));
+	font-size: 14px;
+}
+
+.sdk-chat-username {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+/* Value (content parts container) */
+.sdk-chat-value {
+	width: 100%;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+/* Request turn bubble style */
+.sdk-chat-turn.sdk-chat-request {
+	padding: 5px 20px;
+	align-items: flex-end;
+}
+
+.sdk-chat-turn.sdk-chat-request .sdk-chat-header {
+	display: none;
+}
+
+.sdk-chat-turn.sdk-chat-request .sdk-chat-value .rendered-markdown,
+.sdk-chat-turn.sdk-chat-request .sdk-chat-value .chat-markdown-part {
+	background-color: var(--vscode-chat-requestBubbleBackground, rgba(127, 127, 127, 0.1));
+	border-radius: 8px;
+	padding: 8px 12px;
+	max-width: 90%;
+	margin-left: auto;
+	width: fit-content;
+	margin-bottom: 5px;
+}
+
+.sdk-chat-turn.sdk-chat-request .sdk-chat-value .rendered-markdown:hover,
+.sdk-chat-turn.sdk-chat-request .sdk-chat-value .chat-markdown-part:hover {
+	background-color: var(--vscode-chat-requestBubbleHoverBackground, rgba(127, 127, 127, 0.15));
+}
+
+/* Markdown rendering */
+.sdk-chat-value .rendered-markdown {
+	line-height: 1.5em;
+	font-size: 1em;
+}
+
+.sdk-chat-value .rendered-markdown p {
+	margin: 0 0 8px 0;
+}
+
+.sdk-chat-value .rendered-markdown p:last-child {
+	margin-bottom: 0;
+}
+
+.sdk-chat-value .rendered-markdown h1 { font-size: 1.538em; font-weight: 600; margin: 16px 0 8px 0; line-height: normal; }
+.sdk-chat-value .rendered-markdown h2 { font-size: 1.231em; font-weight: 600; margin: 16px 0 8px 0; line-height: normal; }
+.sdk-chat-value .rendered-markdown h3 { font-size: 1.077em; font-weight: 600; margin: 16px 0 8px 0; line-height: normal; }
+
+.sdk-chat-value .rendered-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 0.923em;
+	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 1px 3px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-textPreformat-border, transparent);
+	white-space: pre-wrap;
+}
+
+.sdk-chat-value .rendered-markdown pre {
+	margin: 0 0 16px 0;
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
+	overflow: hidden;
+}
+
+.sdk-chat-value .rendered-markdown pre code {
+	display: block;
+	padding: 12px 16px;
+	font-size: 0.923em;
+	line-height: 1.45;
+	background: none;
+	border: none;
+	border-radius: 0;
+	overflow-x: auto;
+}
+
+.sdk-chat-value .rendered-markdown strong { font-weight: 600; }
+
+.sdk-chat-value .rendered-markdown a { color: var(--vscode-textLink-foreground); }
+.sdk-chat-value .rendered-markdown a:hover { color: var(--vscode-textLink-activeForeground); }
+
+.sdk-chat-value .rendered-markdown blockquote {
+	margin: 0 0 16px 0;
+	padding: 0 16px 0 10px;
+	border-left: 5px solid var(--vscode-textBlockQuote-border);
+	border-radius: 2px;
+	background: var(--vscode-textBlockQuote-background);
+}
+
+.sdk-chat-value .rendered-markdown table {
+	width: 100%;
+	text-align: left;
+	margin-bottom: 16px;
+	border-radius: var(--vscode-cornerRadius-medium, 6px);
+	overflow: hidden;
+	border-collapse: separate;
+	border-spacing: 0;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-widget-border));
+}
+
+.sdk-chat-value .rendered-markdown td,
+.sdk-chat-value .rendered-markdown th {
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-widget-border));
+	padding: 4px 6px;
+}
+
+.sdk-chat-value .rendered-markdown ul { padding-inline-start: 24px; }
+.sdk-chat-value .rendered-markdown ol { padding-inline-start: 28px; }
+.sdk-chat-value .rendered-markdown li { margin: 4px 0; }
+
+.sdk-chat-value .rendered-markdown img { max-width: 100%; }
+
+.sdk-chat-value .rendered-markdown hr {
+	border: none;
+	border-top: 1px solid rgba(127, 127, 127, 0.35);
+	margin: 16px 0;
+}
+
+/* Tool invocation */
+.sdk-chat-tool {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.923em;
+	color: var(--vscode-descriptionForeground);
+	padding: 2px 8px 2px 0;
+	line-height: 1.6;
+}
+
+.sdk-chat-tool .codicon {
+	font-size: 12px;
+	color: var(--vscode-icon-foreground);
+}
+
+.sdk-chat-tool .codicon-check {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.sdk-chat-tool-message {
+	font-size: 0.923em;
+}
+
+/* Completed tool calls are more compact */
+.sdk-chat-tool.sdk-chat-tool-complete {
+	opacity: 0.6;
+	padding: 0 8px 0 0;
+}
+
+/* Tool call summary (collapsed group of completed tools) */
+.sdk-chat-tool-summary {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.923em;
+	color: var(--vscode-descriptionForeground);
+	padding: 2px 0;
+	cursor: pointer;
+	user-select: none;
+	border-radius: 4px;
+}
+
+.sdk-chat-tool-summary:hover {
+	background-color: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.08));
+}
+
+.sdk-chat-tool-summary .codicon-check {
+	font-size: 12px;
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.sdk-chat-tool-summary-text {
+	font-size: 0.923em;
+}
+
+.sdk-chat-tool-summary.expanded {
+	margin-bottom: 4px;
+}
+
+/* Thinking box */
+.sdk-chat-thinking {
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-widget-border));
+	border-radius: 4px;
+	margin-bottom: 8px;
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sdk-chat-thinking-label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 12px;
+	font-size: 0.923em;
+	cursor: pointer;
+	user-select: none;
+}
+
+.sdk-chat-thinking-label .codicon {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sdk-chat-thinking-content {
+	padding: 4px 12px 8px 24px;
+	font-size: 0.923em;
+	line-height: 1.5em;
+}
+
+.sdk-chat-thinking-content .rendered-markdown p {
+	margin: 0 0 4px 0;
+}
+
+/* Progress message */
+.sdk-chat-progress {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin: 0 0 6px 2px;
+	font-size: 0.923em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sdk-chat-progress .codicon {
+	font-size: 12px;
+	color: var(--vscode-icon-foreground);
+}
+
+/* Shimmer animation (for streaming tool/thinking text) */
+@keyframes sdk-shimmer {
+	0% { background-position: 120% 0; }
+	100% { background-position: -120% 0; }
+}
+
+.sdk-chat-shimmer {
+	background: linear-gradient(90deg,
+		var(--vscode-descriptionForeground) 0%,
+		var(--vscode-descriptionForeground) 30%,
+		var(--vscode-chat-thinkingShimmer, rgba(255, 255, 255, 0.4)) 50%,
+		var(--vscode-descriptionForeground) 70%,
+		var(--vscode-descriptionForeground) 100%);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: sdk-shimmer 2s linear infinite;
+}
+
+/* Streaming cursor */
+@keyframes sdk-blink {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0; }
+}
+
+.sdk-chat-streaming-cursor::after {
+	content: '\25AE';
+	animation: sdk-blink 1s step-end infinite;
+	margin-left: 2px;
+	opacity: 0.7;
+}
+
+/* Welcome (centered hero with icon) */
+.sdk-chat-welcome {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	flex: 1;
+	padding: 40px 20px 0;
+	text-align: center;
+}
+
+.sdk-chat-welcome-hero {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin-bottom: 24px;
+}
+
+.sdk-chat-welcome-icon {
+	width: 80px;
+	height: 80px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.sdk-chat-welcome-icon .codicon {
+	font-size: 64px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.4;
+}
+
+/* Input area */
+.sdk-chat-input-area {
+	padding: 0 20px 16px;
+	flex-shrink: 0;
+	max-width: 680px;
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* When inside the welcome container, constrain width for centered look */
+.sdk-chat-welcome .sdk-chat-input-area {
+	max-width: 600px;
+	padding: 0;
+}
+
+/* When at the bottom of the widget (conversation mode) */
+.sdk-chat-widget > .sdk-chat-input-area {
+	margin: 0 auto;
+	padding: 8px 20px 16px;
+}
+
+/* The input box - rounded card with subtle shadow */
+.sdk-chat-input-box {
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 16px;
+	background-color: var(--vscode-input-background);
+	overflow: hidden;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.sdk-chat-input-box:focus-within {
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Textarea inside the box - no border of its own */
+.sdk-chat-textarea {
+	width: 100%;
+	min-height: 44px;
+	max-height: 200px;
+	padding: 12px 16px 8px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-input-foreground);
+	font-size: 14px;
+	resize: none;
+	outline: none;
+	line-height: 1.5;
+	box-sizing: border-box;
+}
+
+.sdk-chat-textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+/* Bottom toolbar row inside the input box */
+.sdk-chat-input-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 4px 12px 8px;
+}
+
+/* Picker group (folder + model, left side of toolbar) */
+.sdk-chat-picker-group {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.sdk-chat-picker {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	padding: 3px 8px 3px 6px;
+	border-radius: 8px;
+	cursor: pointer;
+	transition: background-color 0.12s ease;
+	font-size: 0.923em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sdk-chat-picker:hover {
+	background-color: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.12));
+}
+
+.sdk-chat-picker .codicon {
+	font-size: 12px;
+	opacity: 0.7;
+}
+
+/* Model/folder picker: select is invisible overlay, label shows current value */
+.sdk-chat-model-picker {
+	position: relative;
+	overflow: hidden;
+}
+
+.sdk-chat-picker-select {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	cursor: pointer;
+	border: none;
+	background: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	appearance: none;
+	font-size: 0;
+	color: transparent;
+	z-index: 1;
+}
+
+.sdk-chat-picker-select option {
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+}
+
+.sdk-chat-picker-label {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 120px;
+	min-width: 0;
+	pointer-events: none;
+}
+
+/* Send / Abort buttons (right side of toolbar) */
+.sdk-chat-input-buttons {
+	display: flex;
+	gap: 4px;
+}
+
+.sdk-chat-send-btn,
+.sdk-chat-abort-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border: none;
+	border-radius: 50%;
+	cursor: pointer;
+	flex-shrink: 0;
+	transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.sdk-chat-send-btn {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.sdk-chat-send-btn:hover { background-color: var(--vscode-button-hoverBackground); }
+.sdk-chat-send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.sdk-chat-abort-btn {
+	background-color: var(--vscode-errorForeground, #f44747);
+	color: var(--vscode-editor-background, #fff);
+}
+
+.sdk-chat-abort-btn:hover { opacity: 0.85; }
+
+.sdk-chat-send-btn .codicon,
+.sdk-chat-abort-btn .codicon {
+	font-size: 14px;
+}
+
+/* Worktree info bar */
+.sdk-chat-worktree-bar {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 20px;
+	font-size: 0.846em;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.sdk-chat-worktree-bar .codicon {
+	font-size: 12px;
+	color: var(--vscode-terminal-ansiGreen);
+}
+
+.sdk-chat-worktree-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+}
+
+.sdk-chat-worktree-action {
+	border: none;
+	background: none;
+	cursor: pointer;
+	padding: 2px 4px;
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+}
+
+.sdk-chat-worktree-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.12));
+	color: var(--vscode-foreground);
+}
+
+.sdk-chat-worktree-action .codicon {
+	font-size: 12px;
+}
+
+/* Status bar */
+.sdk-chat-status {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 20px;
+	font-size: 0.846em;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.7;
+	flex-shrink: 0;
+}
+
+.sdk-chat-status-text {
+	flex: 1;
+}
+
+.sdk-chat-debug-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	padding: 1px 4px;
+	border-radius: 3px;
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.sdk-chat-debug-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	background-color: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.08));
+}
+
+.sdk-chat-debug-link .codicon {
+	font-size: 12px;
+}

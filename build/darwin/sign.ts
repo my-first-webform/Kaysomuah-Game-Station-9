@@ -29,6 +29,8 @@ function getEntitlementsForFile(filePath: string): string {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist');
 	} else if (filePath.includes(pluginHelperAppName)) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist');
+	} else if (filePath.includes('@github/copilot-') && filePath.endsWith('/copilot')) {
+		return path.join(baseDir, 'azure-pipelines', 'darwin', 'copilot-cli-entitlements.plist');
 	}
 	return path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
 }

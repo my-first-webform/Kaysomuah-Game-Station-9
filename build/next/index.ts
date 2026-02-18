@@ -106,6 +106,7 @@ const codeEntryPoints = [
 	'vs/code/electron-utility/sharedProcess/sharedProcessMain',
 	'vs/code/electron-browser/workbench/workbench',
 	'vs/sessions/electron-browser/sessions',
+	'vs/platform/copilotSdk/node/copilotSdkHost',
 ];
 
 // Web entry points (used in server-web and vscode-web)

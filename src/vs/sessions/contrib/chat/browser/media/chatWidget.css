@@ -10,15 +10,6 @@
 	width: 100%;
 }
 
-/* Welcome container fills available space and centers content */
-.sessions-chat-widget .agent-chat-welcome-container {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-}
-
 /* Input area */
 .sessions-chat-input-area {
 	width: 100%;

@@ -114,6 +114,8 @@ import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
 import { ILoggerMainService } from '../../platform/log/electron-main/loggerService.js';
 import { IInitialProtocolUrls, IProtocolUrl } from '../../platform/url/electron-main/url.js';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from '../../platform/utilityProcess/electron-main/utilityProcessWorkerMainService.js';
+import { CopilotSdkMainService } from '../../platform/copilotSdk/electron-main/copilotSdkStarter.js';
+import { ICopilotSdkMainService, CopilotSdkChannel } from '../../platform/copilotSdk/common/copilotSdkService.js';
 import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProcess/common/utilityProcessWorkerService.js';
 import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/electronPtyHostStarter.js';
@@ -1127,6 +1129,11 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		services.set(IUtilityProcessWorkerMainService, new SyncDescriptor(UtilityProcessWorkerMainService, undefined, true));
 
+		// Copilot SDK (utility process host) -- only when --sessions-utility-process is active
+		if (this.environmentMainService.args['sessions-utility-process']) {
+			services.set(ICopilotSdkMainService, new SyncDescriptor(CopilotSdkMainService, undefined, true));
+		}
+
 		// Proxy Auth
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
 
@@ -1279,6 +1286,12 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
+
+		// Copilot SDK (lazy - utility process only starts on first call)
+		if (this.environmentMainService.args['sessions-utility-process']) {
+			const copilotSdkMainService = accessor.get(ICopilotSdkMainService);
+			mainProcessElectronServer.registerChannel(CopilotSdkChannel, copilotSdkMainService.getServerChannel());
+		}
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
@@ -1288,8 +1301,8 @@ export class CodeApplication extends Disposable {
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
 
-		// Embedded app launches directly into the sessions window
-		if ((process as INodeProcess).isEmbeddedApp) {
+		// Open sessions window if requested
+		if ((process as INodeProcess).isEmbeddedApp || args['sessions-utility-process']) {
 			return windowsMainService.openSessionsWindow({ context, contextWindowId: undefined });
 		}
 

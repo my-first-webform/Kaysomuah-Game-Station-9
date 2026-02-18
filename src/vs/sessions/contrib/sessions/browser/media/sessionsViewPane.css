@@ -13,8 +13,7 @@
 	}
 
 	/* Section headers - more prominent than time-based groupings */
-	.ai-customization-header,
-	.agent-sessions-header {
+	.ai-customization-header {
 		font-size: 11px;
 		font-weight: 500;
 		text-transform: uppercase;
@@ -42,8 +41,7 @@
 		outline-offset: -1px;
 	}
 
-	.ai-customization-chevron,
-	.agent-sessions-chevron {
+	.ai-customization-chevron {
 		flex-shrink: 0;
 		margin-left: auto;
 		padding-right: 4px;
@@ -52,9 +50,7 @@
 	}
 
 	.ai-customization-header:hover .ai-customization-chevron,
-	.ai-customization-header:focus .ai-customization-chevron,
-	.agent-sessions-header:hover .agent-sessions-chevron,
-	.agent-sessions-header:focus .agent-sessions-chevron {
+	.ai-customization-header:focus .ai-customization-chevron {
 		opacity: 0.7;
 	}
 
@@ -156,33 +152,11 @@
 		min-height: 0;
 	}
 
-	.agent-sessions-header {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		padding-top: 10px;
-		padding-right: 12px;
-		user-select: none;
-	}
-
-	.agent-sessions-header .agent-sessions-header-toolbar {
-		margin-left: auto;
-	}
-
-	.agent-sessions-header:focus {
-		outline: 1px solid var(--vscode-focusBorder);
-		outline-offset: -1px;
-	}
-
 	.agent-sessions-content {
 		display: flex;
 		flex-direction: column;
 		flex: 1;
 		overflow: hidden;
-	}
-
-	.agent-sessions-content.collapsed {
-		display: none;
 	}
 
 	.agent-sessions-new-button-container {
@@ -211,5 +185,130 @@
 		.agent-session-section {
 			padding-left: 12px;
 		}
+	}
+
+	.sdk-session-list-empty {
+		padding: 16px 14px;
+		font-size: 13px;
+		color: var(--vscode-descriptionForeground);
+		text-align: center;
+	}
+
+	.sdk-session-item {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 8px 14px;
+		margin: 0 6px;
+		cursor: pointer;
+		border-radius: 6px;
+		font-size: 13px;
+	}
+
+	.sdk-session-item:hover {
+		background-color: var(--vscode-list-hoverBackground);
+	}
+
+	.sdk-session-item:focus {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
+
+	.sdk-session-item.selected {
+		background-color: var(--vscode-list-activeSelectionBackground);
+		color: var(--vscode-list-activeSelectionForeground);
+	}
+
+	.sdk-session-icon {
+		flex-shrink: 0;
+		width: 16px;
+		height: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		opacity: 0.7;
+	}
+
+	.sdk-session-details {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		overflow: hidden;
+		min-width: 0;
+		flex: 1;
+	}
+
+	.sdk-session-label {
+		font-family: inherit;
+		font-size: 12px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.sdk-session-path {
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.sdk-session-item.selected .sdk-session-path {
+		color: var(--vscode-list-activeSelectionForeground);
+		opacity: 0.8;
+	}
+
+	.sdk-session-time {
+		flex-shrink: 0;
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+		opacity: 0.7;
+	}
+
+	.sdk-session-item.selected .sdk-session-time {
+		color: var(--vscode-list-activeSelectionForeground);
+		opacity: 0.7;
+	}
+
+	/* Delete action on hover */
+	.sdk-session-actions {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		visibility: hidden;
+	}
+
+	.sdk-session-item:hover .sdk-session-actions,
+	.sdk-session-item:focus .sdk-session-actions {
+		visibility: visible;
+	}
+
+	.sdk-session-item:hover .sdk-session-time,
+	.sdk-session-item:focus .sdk-session-time {
+		display: none;
+	}
+
+	.sdk-session-action-btn {
+		border: none;
+		background: none;
+		cursor: pointer;
+		padding: 2px;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--vscode-icon-foreground);
+		opacity: 0.7;
+	}
+
+	.sdk-session-action-btn:hover {
+		background-color: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.12));
+		opacity: 1;
+	}
+
+	.sdk-session-item.selected .sdk-session-action-btn {
+		color: var(--vscode-list-activeSelectionForeground);
 	}
 }

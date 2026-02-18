@@ -50,9 +50,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	static readonly viewContainersWorkspaceStateKey = 'workbench.agentsession.viewletsWorkspaceState';
 
 	/** Visual margin values - sidebar is flush (no card appearance) */
-	static readonly MARGIN_TOP = 0;
-	static readonly MARGIN_BOTTOM = 0;
-	static readonly MARGIN_LEFT = 0;
 	static readonly FOOTER_HEIGHT = 39;
 
 
@@ -264,12 +261,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	protected getCompositeBarPosition(): CompositeBarPosition {
 		return CompositeBarPosition.TITLE;
-	}
-
-	async focusActivityBar(): Promise<void> {
-		if (this.shouldShowCompositeBar()) {
-			this.focusCompositeBar();
-		}
 	}
 
 	toJSON(): object {
