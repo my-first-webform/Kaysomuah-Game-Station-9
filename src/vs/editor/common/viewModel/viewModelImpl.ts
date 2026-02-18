@@ -686,8 +686,8 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getCompletelyVisibleViewRange(): Range {
 		const partialData = this.viewLayout.getLinesViewportData();
-		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
-		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+		const startViewLineNumber = Math.max(1, partialData.completelyVisibleStartLineNumber);
+		const endViewLineNumber = Math.min(this.getLineCount(), partialData.completelyVisibleEndLineNumber);
 
 		return new Range(
 			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
@@ -697,8 +697,8 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
 		const partialData = this.viewLayout.getLinesViewportDataAtScrollTop(scrollTop);
-		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
-		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+		const startViewLineNumber = Math.max(1, partialData.completelyVisibleStartLineNumber);
+		const endViewLineNumber = Math.min(this.getLineCount(), partialData.completelyVisibleEndLineNumber);
 
 		return new Range(
 			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
