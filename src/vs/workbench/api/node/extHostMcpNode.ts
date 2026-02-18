@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
-import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { mcpSandboxedLaunchEnvironmentKey, McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandler.js';
 import { CommonRequestInit, CommonResponse, ExtHostMcpService, McpHTTPHandle } from '../common/extHostMcp.js';
 
@@ -74,6 +74,12 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		}
 		for (const [key, value] of Object.entries(launch.env)) {
 			env[key] = value === null ? undefined : String(value);
+		}
+
+		const isSandboxedLaunch = env[mcpSandboxedLaunchEnvironmentKey] === 'true';
+		delete env[mcpSandboxedLaunchEnvironmentKey];
+		if (isSandboxedLaunch) {
+			delete env.VSCODE_INSPECTOR_OPTIONS;
 		}
 
 		let child: ChildProcessWithoutNullStreams;
