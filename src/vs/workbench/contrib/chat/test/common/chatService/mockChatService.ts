@@ -8,9 +8,9 @@ import { Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializedChatDataReference } from '../../../common/model/chatModel.js';
 import { IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatCompleteResponse, ICrossWorkspaceSessionDetail, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 
 export class MockChatService implements IChatService {
@@ -161,5 +161,11 @@ export class MockChatService implements IChatService {
 	}
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
+	}
+	async getCrossWorkspaceHistoryItems(): Promise<ICrossWorkspaceSessionDetail[]> {
+		return [];
+	}
+	async readCrossWorkspaceSession(_sessionId: string, _storageRoot: string): Promise<ISerializedChatDataReference | undefined> {
+		return undefined;
 	}
 }

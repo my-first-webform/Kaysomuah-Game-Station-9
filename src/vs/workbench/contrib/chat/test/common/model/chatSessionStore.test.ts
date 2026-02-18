@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -13,7 +14,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -22,14 +23,14 @@ import { TestWorkspace, Workspace } from '../../../../../../platform/workspace/t
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { InMemoryTestFileService, TestContextService, TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
-import { ChatModel, ISerializableChatData3 } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatRequestModel, ISerializableChatData3 } from '../../../common/model/chatModel.js';
 import { ChatSessionStore, IChatTransfer } from '../../../common/model/chatSessionStore.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatModel } from './mockChatModel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
-function createMockChatModel(sessionResource: URI, options?: { customTitle?: string }): ChatModel {
+function createMockChatModel(sessionResource: URI, options?: { customTitle?: string; nonEmpty?: boolean }): ChatModel {
 	const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
 	if (!sessionId) {
 		throw new Error('createMockChatModel requires a local session URI');
@@ -38,6 +39,13 @@ function createMockChatModel(sessionResource: URI, options?: { customTitle?: str
 	model.sessionId = sessionId;
 	if (options?.customTitle) {
 		model.customTitle = options.customTitle;
+	}
+	if (options?.nonEmpty) {
+		// Override getRequests to return a dummy request so sessions are not
+		// considered empty by getSessionMetadata / flushGlobalIndex.
+		const dummyRequest = { id: 'req-1', timestamp: Date.now() } as unknown as IChatRequestModel;
+		model.getRequests = () => [dummyRequest];
+		(model as unknown as { requests: IChatRequestModel[] }).requests = [dummyRequest];
 	}
 	// Cast to ChatModel - the mock implements enough of the interface for testing
 	return model as unknown as ChatModel;
@@ -460,6 +468,304 @@ suite('ChatSessionStore', () => {
 
 			const newStorageRoot = store.getChatStorageFolder();
 			assert.ok(newStorageRoot.path.includes('new-workspace-id'), 'Storage root should be updated to new workspace location');
+		});
+	});
+
+	suite('global cross-workspace index', () => {
+		test('getGlobalIndex returns empty when no global index exists', async () => {
+			const store = createChatSessionStore();
+			const entries = await store.getGlobalIndex();
+			assert.deepStrictEqual(entries, []);
+		});
+
+		test('storeSessions populates the global index for non-empty-window workspace', async () => {
+			const store = createChatSessionStore(false);
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-g1'), { customTitle: 'Global Test', nonEmpty: true }));
+
+			await store.storeSessions([model]);
+
+			// The global index should be written - but since we are the current workspace,
+			// getGlobalIndex filters us out. Verify by checking storage directly.
+			const storageService = instantiationService.get(IStorageService);
+			const raw = storageService.get('chat.ChatSessionStore.globalIndex', StorageScope.APPLICATION, undefined);
+			assert.ok(raw, 'Global index should be stored in APPLICATION scope');
+
+			const parsed = JSON.parse(raw!);
+			assert.strictEqual(parsed.version, 1);
+			assert.ok(Object.keys(parsed.workspaces).length > 0, 'Should have at least one workspace in global index');
+		});
+
+		test('storeSessions does NOT populate global index for empty window', async () => {
+			const store = createChatSessionStore(true);
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-empty')));
+
+			await store.storeSessions([model]);
+
+			const storageService = instantiationService.get(IStorageService);
+			const raw = storageService.get('chat.ChatSessionStore.globalIndex', StorageScope.APPLICATION, undefined);
+			assert.strictEqual(raw, undefined, 'Empty window should not write to global index');
+		});
+
+		test('getGlobalIndex filters out current workspace entries', async () => {
+			const store = createChatSessionStore(false);
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-self')));
+
+			await store.storeSessions([model]);
+
+			// getGlobalIndex should return empty because the only workspace is the current one
+			const entries = await store.getGlobalIndex();
+			assert.strictEqual(entries.length, 0, 'Should not include current workspace sessions');
+		});
+
+		test('getGlobalIndex returns sessions from other workspaces written to storage', async () => {
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+			// Manually inject a global index entry for another workspace
+			const otherWorkspaceIndex: { version: 1; workspaces: Record<string, unknown> } = {
+				version: 1,
+				workspaces: {
+					'other-workspace-id': {
+						workspaceName: 'Other Project',
+						storageRoot: 'file:///test/workspaceStorage/other-workspace-id/chatSessions',
+						entries: {
+							'session-x1': {
+								sessionId: 'session-x1',
+								title: 'Cross Workspace Chat',
+								lastMessageDate: 1700000000000,
+								timing: { created: 1700000000000, lastRequestStarted: 1700000000000, lastRequestEnded: 1700000001000 },
+								lastResponseState: 3, // ResponseModelState.Complete
+							},
+							'session-x2': {
+								sessionId: 'session-x2',
+								title: 'Another Chat',
+								lastMessageDate: 1700000002000,
+								timing: { created: 1700000002000, lastRequestStarted: 1700000002000, lastRequestEnded: 1700000003000 },
+								lastResponseState: 3,
+							},
+						},
+					},
+				},
+			};
+			storageService.store('chat.ChatSessionStore.globalIndex', JSON.stringify(otherWorkspaceIndex), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+			const store = createChatSessionStore(false);
+			const entries = await store.getGlobalIndex();
+
+			assert.strictEqual(entries.length, 2, 'Should return 2 sessions from other workspace');
+			assert.strictEqual(entries[0].workspaceName, 'Other Project');
+			assert.strictEqual(entries[0].workspaceId, 'other-workspace-id');
+			assert.ok(entries.some(e => e.sessionId === 'session-x1'));
+			assert.ok(entries.some(e => e.sessionId === 'session-x2'));
+		});
+
+		test('getGlobalIndex handles corrupt global index gracefully', async () => {
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+			// Store invalid JSON
+			storageService.store('chat.ChatSessionStore.globalIndex', 'not-valid-json{{[', StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+			const store = createChatSessionStore(false);
+			const entries = await store.getGlobalIndex();
+
+			assert.deepStrictEqual(entries, [], 'Should gracefully return empty array for corrupt index');
+		});
+
+		test('getGlobalIndex handles wrong version gracefully', async () => {
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+			storageService.store('chat.ChatSessionStore.globalIndex', JSON.stringify({ version: 99, workspaces: {} }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+			const store = createChatSessionStore(false);
+			const entries = await store.getGlobalIndex();
+
+			assert.deepStrictEqual(entries, [], 'Should return empty for unrecognized version');
+		});
+
+		test('getGlobalIndex skips workspace entries with empty entries object', async () => {
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+			const index = {
+				version: 1,
+				workspaces: {
+					'stale-workspace': {
+						workspaceName: 'Stale Project',
+						storageRoot: 'file:///test/stale',
+						entries: {},
+					},
+					'valid-workspace': {
+						workspaceName: 'Valid Project',
+						storageRoot: 'file:///test/valid',
+						entries: {
+							'session-v1': {
+								sessionId: 'session-v1',
+								title: 'Valid Chat',
+								lastMessageDate: Date.now(),
+								timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: Date.now() },
+								lastResponseState: 3,
+							},
+						},
+					},
+				},
+			};
+			storageService.store('chat.ChatSessionStore.globalIndex', JSON.stringify(index), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+			const store = createChatSessionStore(false);
+			const entries = await store.getGlobalIndex();
+
+			assert.strictEqual(entries.length, 1, 'Should only return entries from non-empty workspaces');
+			assert.strictEqual(entries[0].workspaceName, 'Valid Project');
+		});
+
+		test('getGlobalIndex skips malformed workspace entries (no workspaceName)', async () => {
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+			const index = {
+				version: 1,
+				workspaces: {
+					'malformed-workspace': {
+						// missing workspaceName
+						storageRoot: 'file:///test/malformed',
+						entries: {
+							's1': {
+								sessionId: 's1',
+								title: 'Chat',
+								lastMessageDate: Date.now(),
+								timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: Date.now() },
+								lastResponseState: 3,
+							},
+						},
+					},
+				},
+			};
+			storageService.store('chat.ChatSessionStore.globalIndex', JSON.stringify(index), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+			const store = createChatSessionStore(false);
+			const entries = await store.getGlobalIndex();
+
+			assert.strictEqual(entries.length, 0, 'Should skip malformed workspace entries');
+		});
+
+		test('flushGlobalIndex removes workspace entry when all sessions are cleared', async () => {
+			const store = createChatSessionStore(false);
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-del'), { nonEmpty: true }));
+
+			await store.storeSessions([model]);
+
+			// Verify it exists in global index
+			const storageService = instantiationService.get(IStorageService);
+			let raw = storageService.get('chat.ChatSessionStore.globalIndex', StorageScope.APPLICATION, undefined);
+			let parsed = JSON.parse(raw!);
+			const workspaceId = Object.keys(parsed.workspaces)[0];
+			assert.ok(workspaceId, 'Should have workspace entry');
+
+			// Delete the session and store again with empty sessions
+			await store.clearAllSessions();
+
+			// After clearing, global index should have the workspace entry removed
+			raw = storageService.get('chat.ChatSessionStore.globalIndex', StorageScope.APPLICATION, undefined);
+			parsed = JSON.parse(raw!);
+			assert.strictEqual(parsed.workspaces[workspaceId], undefined, 'Workspace entry should be removed when all sessions are cleared');
+		});
+
+		test('readCrossWorkspaceSession returns undefined for empty sessionId', async () => {
+			const store = createChatSessionStore(false);
+			const result = await store.readCrossWorkspaceSession('', 'file:///test/storage');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('readCrossWorkspaceSession returns undefined for empty storageRoot', async () => {
+			const store = createChatSessionStore(false);
+			const result = await store.readCrossWorkspaceSession('session-1', '');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('readCrossWorkspaceSession returns undefined for non-existent session file', async () => {
+			const store = createChatSessionStore(false);
+			const result = await store.readCrossWorkspaceSession('non-existent-session', 'file:///test/workspaceStorage/other/chatSessions');
+			assert.strictEqual(result, undefined);
+		});
+
+		test('readCrossWorkspaceSession reads valid session from another workspace storage', async () => {
+			// Disable log session storage to avoid InMemoryTestFileService returning
+			// default content for non-existent .jsonl files (real file service throws FILE_NOT_FOUND).
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			configService.setUserConfiguration('chat', { useLogSessionStorage: false });
+			const store = createChatSessionStore(false);
+			const fileService = instantiationService.get(IFileService);
+
+			// Write a session file to a mock cross-workspace storage location
+			const crossStorageRoot = URI.file('/test/workspaceStorage/cross-workspace/chatSessions');
+			const sessionData = {
+				version: 3,
+				sessionId: 'cross-session-1',
+				creationDate: Date.now(),
+				requests: [],
+				responderUsername: 'agent',
+			};
+			const sessionFile = URI.joinPath(crossStorageRoot, 'cross-session-1.json');
+			await fileService.writeFile(sessionFile, VSBuffer.fromString(JSON.stringify(sessionData)));
+
+			const result = await store.readCrossWorkspaceSession('cross-session-1', crossStorageRoot.toString());
+			assert.ok(result, 'Should return deserialized session data');
+			assert.strictEqual((result!.value as unknown as { sessionId: string }).sessionId, 'cross-session-1');
+		});
+
+		test('multiple workspace entries are returned correctly', async () => {
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+			const index = {
+				version: 1,
+				workspaces: {
+					'workspace-a': {
+						workspaceName: 'Project A',
+						storageRoot: 'file:///test/a',
+						entries: {
+							'sa1': { sessionId: 'sa1', title: 'A Chat 1', lastMessageDate: 1000, timing: { created: 1000, lastRequestStarted: 1000, lastRequestEnded: 2000 }, lastResponseState: 3 },
+						},
+					},
+					'workspace-b': {
+						workspaceName: 'Project B',
+						storageRoot: 'file:///test/b',
+						entries: {
+							'sb1': { sessionId: 'sb1', title: 'B Chat 1', lastMessageDate: 3000, timing: { created: 3000, lastRequestStarted: 3000, lastRequestEnded: 4000 }, lastResponseState: 3 },
+							'sb2': { sessionId: 'sb2', title: 'B Chat 2', lastMessageDate: 5000, timing: { created: 5000, lastRequestStarted: 5000, lastRequestEnded: 6000 }, lastResponseState: 3 },
+						},
+					},
+				},
+			};
+			storageService.store('chat.ChatSessionStore.globalIndex', JSON.stringify(index), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+			const store = createChatSessionStore(false);
+			const entries = await store.getGlobalIndex();
+
+			assert.strictEqual(entries.length, 3, 'Should return 3 entries from 2 workspaces');
+			assert.ok(entries.some(e => e.workspaceName === 'Project A'));
+			assert.ok(entries.some(e => e.workspaceName === 'Project B'));
+		});
+
+		test('getGlobalIndex correctly carries storageRoot in entries', async () => {
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+			const storageRootA = 'file:///workspaces/a/chatSessions';
+			const index = {
+				version: 1,
+				workspaces: {
+					'ws-a': {
+						workspaceName: 'WS A',
+						storageRoot: storageRootA,
+						entries: {
+							's1': { sessionId: 's1', title: 'Chat', lastMessageDate: Date.now(), timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: Date.now() }, lastResponseState: 3 },
+						},
+					},
+				},
+			};
+			storageService.store('chat.ChatSessionStore.globalIndex', JSON.stringify(index), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+			const store = createChatSessionStore(false);
+			const entries = await store.getGlobalIndex();
+
+			assert.strictEqual(entries.length, 1);
+			assert.strictEqual(entries[0].storageRoot, storageRootA, 'storageRoot should be preserved from global index');
 		});
 	});
 });
