@@ -107,6 +107,7 @@ export class LineHeightsManager {
 	}
 
 	public heightForLineNumber(lineNumber: number): number {
+		this.commit();
 		const searchIndex = this._binarySearchOverOrderedCustomLinesArray(lineNumber);
 		if (searchIndex >= 0) {
 			return this._orderedCustomLines[searchIndex].maximumSpecialHeight;
@@ -115,6 +116,7 @@ export class LineHeightsManager {
 	}
 
 	public getAccumulatedLineHeightsIncludingLineNumber(lineNumber: number): number {
+		this.commit();
 		const searchIndex = this._binarySearchOverOrderedCustomLinesArray(lineNumber);
 		if (searchIndex >= 0) {
 			return this._orderedCustomLines[searchIndex].prefixSum + this._orderedCustomLines[searchIndex].maximumSpecialHeight;
@@ -304,7 +306,6 @@ export class LineHeightsManager {
 				this.insertOrChangeCustomLineHeight(dec.decorationId, dec.startLineNumber, dec.endLineNumber, dec.lineHeight);
 			}
 		}
-		this.commit();
 	}
 
 	public commit(): void {
