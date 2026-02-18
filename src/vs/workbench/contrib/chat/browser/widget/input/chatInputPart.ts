@@ -679,7 +679,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private setImplicitContextEnablement() {
 		if (this.implicitContext && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext')) {
-			this.implicitContext.setEnabled(this._currentModeObservable.get().kind !== ChatMode.Agent.kind);
+			this.implicitContext.setEnabled(this._currentModeObservable.get().name.get().toLowerCase() === 'ask');
 		}
 	}
 
