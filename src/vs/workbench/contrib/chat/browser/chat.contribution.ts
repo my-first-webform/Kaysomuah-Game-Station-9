@@ -74,6 +74,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
+import { registerChatForkActions } from './actions/chatForkActions.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
@@ -1432,6 +1433,155 @@ AccessibleViewRegistry.register(new EditsChatAccessibilityHelp());
 AccessibleViewRegistry.register(new AgentChatAccessibilityHelp());
 
 registerEditorFeature(ChatInputBoxContentProvider);
+
+class ChatSlashStaticSlashCommandsContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatSlashStaticSlashCommands';
+
+	constructor(
+		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
+		@ICommandService commandService: ICommandService,
+		@IChatAgentService chatAgentService: IChatAgentService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
+	) {
+		super();
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'clear',
+			detail: nls.localize('clear', "Start a new chat and archive the current one"),
+			sortText: 'z2_clear',
+			executeImmediately: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			agentSessionsService.getSession(sessionResource)?.setArchived(true);
+			commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'hooks',
+			detail: nls.localize('hooks', "Configure hooks"),
+			sortText: 'z3_hooks',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'debug',
+			detail: nls.localize('debug', "Show Chat Debug View"),
+			sortText: 'z3_debug',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('github.copilot.debug.showChatLogView');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'agents',
+			detail: nls.localize('agents', "Configure custom agents"),
+			sortText: 'z3_agents',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.customagents');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'skills',
+			detail: nls.localize('skills', "Configure skills"),
+			sortText: 'z3_skills',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.skills');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'instructions',
+			detail: nls.localize('instructions', "Configure instructions"),
+			sortText: 'z3_instructions',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.instructions');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'prompts',
+			detail: nls.localize('prompts', "Configure prompt files"),
+			sortText: 'z3_prompts',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.prompts');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'fork',
+			detail: nls.localize('chat.slashCommand.fork.detail', "Fork conversation into a new chat session"),
+			sortText: 'z2_fork',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'help',
+			detail: '',
+			sortText: 'z1_help',
+			executeImmediately: true,
+			locations: [ChatAgentLocation.Chat],
+			modes: [ChatModeKind.Ask]
+		}, async (prompt, progress, _history, _location, sessionResource) => {
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
+			const agents = chatAgentService.getAgents();
+
+			// Report prefix
+			if (defaultAgent?.metadata.helpTextPrefix) {
+				if (isMarkdownString(defaultAgent.metadata.helpTextPrefix)) {
+					progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'markdownContent' });
+				} else {
+					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextPrefix), kind: 'markdownContent' });
+				}
+				progress.report({ content: new MarkdownString('\n\n'), kind: 'markdownContent' });
+			}
+
+			// Report agent list
+			const agentText = (await Promise.all(agents
+				.filter(a => !a.isDefault && !a.isCore)
+				.filter(a => a.locations.includes(ChatAgentLocation.Chat))
+				.map(async a => {
+					const description = a.description ? `- ${a.description}` : '';
+					const agentMarkdown = instantiationService.invokeFunction(accessor => agentToMarkdown(a, sessionResource, true, accessor));
+					const agentLine = `- ${agentMarkdown} ${description}`;
+					const commandText = a.slashCommands.map(c => {
+						const description = c.description ? `- ${c.description}` : '';
+						return `\t* ${agentSlashCommandToMarkdown(a, c, sessionResource)} ${description}`;
+					}).join('\n');
+
+					return (agentLine + '\n' + commandText).trim();
+				}))).join('\n');
+			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [ChatSubmitAction.ID] } }), kind: 'markdownContent' });
+
+			// Report help text ending
+			if (defaultAgent?.metadata.helpTextPostfix) {
+				progress.report({ content: new MarkdownString('\n\n'), kind: 'markdownContent' });
+				if (isMarkdownString(defaultAgent.metadata.helpTextPostfix)) {
+					progress.report({ content: defaultAgent.metadata.helpTextPostfix, kind: 'markdownContent' });
+				} else {
+					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextPostfix), kind: 'markdownContent' });
+				}
+			}
+
+			// Without this, the response will be done before it renders and so it will not stream. This ensures that if the response starts
+			// rendering during the next 200ms, then it will be streamed. Once it starts streaming, the whole response streams even after
+			// it has received all response data has been received.
+			await timeout(200);
+		}));
+	}
+}
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
@@ -1486,6 +1636,7 @@ registerChatExecuteActions();
 registerChatQueueActions();
 registerQuickChatActions();
 registerChatExportActions();
+registerChatForkActions();
 registerMoveActions();
 registerNewChatActions();
 registerChatContextActions();
