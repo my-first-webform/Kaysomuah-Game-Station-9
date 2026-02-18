@@ -19,6 +19,7 @@ export enum HookType {
 	UserPromptSubmit = 'UserPromptSubmit',
 	PreToolUse = 'PreToolUse',
 	PostToolUse = 'PostToolUse',
+	PostToolUseFailure = 'PostToolUseFailure',
 	PreCompact = 'PreCompact',
 	SubagentStart = 'SubagentStart',
 	SubagentStop = 'SubagentStop',
@@ -53,6 +54,11 @@ export const HOOK_TYPES = [
 		id: HookType.PostToolUse,
 		label: nls.localize('hookType.postToolUse.label', "Post-Tool Use"),
 		description: nls.localize('hookType.postToolUse.description', "Executed after a tool completes execution successfully.")
+	},
+	{
+		id: HookType.PostToolUseFailure,
+		label: nls.localize('hookType.postToolUseFailure.label', "Post-Tool Use Failure"),
+		description: nls.localize('hookType.postToolUseFailure.description', "Executed after a tool fails during execution.")
 	},
 	{
 		id: HookType.PreCompact,
@@ -110,6 +116,7 @@ export interface IChatRequestHooks {
 	readonly [HookType.UserPromptSubmit]?: readonly IHookCommand[];
 	readonly [HookType.PreToolUse]?: readonly IHookCommand[];
 	readonly [HookType.PostToolUse]?: readonly IHookCommand[];
+	readonly [HookType.PostToolUseFailure]?: readonly IHookCommand[];
 	readonly [HookType.PreCompact]?: readonly IHookCommand[];
 	readonly [HookType.SubagentStart]?: readonly IHookCommand[];
 	readonly [HookType.SubagentStop]?: readonly IHookCommand[];
@@ -204,6 +211,10 @@ export const hookFileSchema: IJSONSchema = {
 				PostToolUse: {
 					...hookArraySchema,
 					description: nls.localize('hookFile.postToolUse', 'Executed after a tool completes execution successfully. Use to log execution results, track usage statistics, generate audit trails, or monitor performance.')
+				},
+				PostToolUseFailure: {
+					...hookArraySchema,
+					description: nls.localize('hookFile.postToolUseFailure', 'Executed when a tool fails during execution. Use to log failures, track error patterns, or trigger remediation scripts.')
 				},
 				PreCompact: {
 					...hookArraySchema,
