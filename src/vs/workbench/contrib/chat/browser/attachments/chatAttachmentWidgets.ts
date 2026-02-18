@@ -11,6 +11,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as event from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -19,6 +20,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
@@ -928,6 +930,7 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
@@ -940,6 +943,8 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
 		this.label.setLabel(withIcon, undefined, { title: localize('chat.clickToViewContents', "Click to view the contents of: {0}", attachmentLabel) });
 
+		this._register(this.hoverService.setupDelayedHover(this.element, this.getHoverContent(attachment), commonHoverLifecycleOptions));
+
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async () => {
 			const content = attachment.value?.toString() || '';
 			await editorService.openEditor({
@@ -950,6 +955,162 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 				}
 			});
 		}));
+	}
+
+	private getHoverContent(attachment: IElementVariableEntry): IDelayedHoverOptions {
+		const hoverElement = dom.$('div.chat-attached-context-hover.chat-element-hover');
+
+		// Wrap all sections in a scrollable container for VS Code styled scrollbar
+		const scrollableContent = dom.$('div.chat-element-hover-content');
+
+		// ELEMENT section: show the selected element tag with all attributes
+		{
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.element', "ELEMENT"));
+			section.appendChild(header);
+			const elementPre = dom.$('pre.chat-element-hover-code');
+			const elementCode = dom.$('code');
+			// Build the element tag from the outerHTML (just the opening tag)
+			const tagDisplay = this.formatElementTag(attachment);
+			elementCode.textContent = tagDisplay;
+			elementPre.appendChild(elementCode);
+			section.appendChild(elementPre);
+			scrollableContent.appendChild(section);
+		}
+
+		// ATTRIBUTES section
+		if (attachment.attributes && Object.keys(attachment.attributes).length > 0) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.attributes', "ATTRIBUTES"));
+			section.appendChild(header);
+			const table = dom.$('div.chat-element-hover-table');
+			for (const [name, value] of Object.entries(attachment.attributes)) {
+				const row = dom.$('div.chat-element-hover-row');
+				row.appendChild(dom.$('span.chat-element-hover-label', {}, `${name}:`));
+				row.appendChild(dom.$('span.chat-element-hover-value', {}, value));
+				table.appendChild(row);
+			}
+			section.appendChild(table);
+			scrollableContent.appendChild(section);
+		}
+
+		// HTML PATH section: render ancestor chain as indented HTML tree (matching CSS selector hover style)
+		if (attachment.ancestors && attachment.ancestors.length > 1) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.htmlPath', "HTML PATH"));
+			section.appendChild(header);
+			const lines: string[] = [];
+			for (let i = 0; i < attachment.ancestors.length; i++) {
+				const ancestor = attachment.ancestors[i];
+				const indent = '  '.repeat(i);
+				const tag = this.formatAncestorTag(ancestor);
+				lines.push(`${indent}${tag}`);
+			}
+			const pathPre = dom.$('pre.chat-element-hover-code');
+			const pathCode = dom.$('code');
+			pathCode.textContent = lines.join('\n');
+			pathPre.appendChild(pathCode);
+			section.appendChild(pathPre);
+			scrollableContent.appendChild(section);
+		}
+
+		// COMPUTED STYLES section
+		if (attachment.computedStyles && Object.keys(attachment.computedStyles).length > 0) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.computedStyles', "COMPUTED STYLES"));
+			section.appendChild(header);
+			const table = dom.$('div.chat-element-hover-table');
+			for (const [name, value] of Object.entries(attachment.computedStyles)) {
+				const row = dom.$('div.chat-element-hover-row');
+				row.appendChild(dom.$('span.chat-element-hover-label', {}, `${name}:`));
+				const valueContainer = dom.$('span.chat-element-hover-value');
+				// Show color swatch for color properties
+				if ((name === 'color' || name === 'background-color') && value) {
+					const swatch = dom.$('span.chat-element-hover-color-swatch');
+					swatch.style.backgroundColor = value;
+					valueContainer.appendChild(swatch);
+				}
+				valueContainer.appendChild(document.createTextNode(value));
+				row.appendChild(valueContainer);
+				table.appendChild(row);
+			}
+			section.appendChild(table);
+			scrollableContent.appendChild(section);
+		}
+
+		// POSITION & SIZE section
+		if (attachment.dimensions) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.positionSize', "POSITION & SIZE"));
+			section.appendChild(header);
+			const table = dom.$('div.chat-element-hover-table');
+			const dims: [string, number][] = [
+				['top:', attachment.dimensions.top],
+				['left:', attachment.dimensions.left],
+				['width:', attachment.dimensions.width],
+				['height:', attachment.dimensions.height],
+			];
+			for (const [label, val] of dims) {
+				const row = dom.$('div.chat-element-hover-row');
+				row.appendChild(dom.$('span.chat-element-hover-label', {}, label));
+				row.appendChild(dom.$('span.chat-element-hover-value', {}, `${Math.round(val)}px`));
+				table.appendChild(row);
+			}
+			section.appendChild(table);
+			scrollableContent.appendChild(section);
+		}
+
+		// INNER TEXT section
+		if (attachment.innerText) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.innerText', "INNER TEXT"));
+			section.appendChild(header);
+			section.appendChild(dom.$('div.chat-element-hover-text', {}, attachment.innerText));
+			scrollableContent.appendChild(section);
+		}
+
+		const scrollableElement = this._register(new DomScrollableElement(scrollableContent, {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Hidden,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		const scrollableDomNode = scrollableElement.getDomNode();
+		scrollableDomNode.classList.add('chat-element-hover-scrollable');
+		hoverElement.appendChild(scrollableDomNode);
+
+		return {
+			...commonHoverOptions,
+			content: hoverElement,
+			additionalClasses: ['chat-element-data-hover'],
+			onDidShow: () => scrollableElement.scanDomNode(),
+		};
+	}
+
+	private formatElementTag(attachment: IElementVariableEntry): string {
+		// Extract the opening tag from the outerHTML within the value string
+		// Value format: "Attached HTML and CSS Context\n\n<tag ...>...</tag>\n\n..."
+		const content = attachment.value?.toString() ?? '';
+		const htmlMatch = content.match(/\n\n(<[^>]+>)/);
+		if (htmlMatch) {
+			return htmlMatch[1];
+		}
+		// Fallback: try first tag in content
+		const fallback = content.match(/<([^>]+)>/);
+		if (fallback) {
+			return `<${fallback[1]}>`;
+		}
+		return `<${attachment.name}>`;
+	}
+
+	private formatAncestorTag(ancestor: { tagName: string; id?: string; classNames?: string[] }): string {
+		const parts = [`<${ancestor.tagName}`];
+		if (ancestor.classNames?.length) {
+			parts.push(` class="${ancestor.classNames.join(' ')}"`);
+		}
+		if (ancestor.id) {
+			parts.push(` id="${ancestor.id}"`);
+		}
+		return parts.join('') + '>';
 	}
 }
 

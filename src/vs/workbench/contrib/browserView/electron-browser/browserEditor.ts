@@ -372,6 +372,7 @@ export class BrowserEditor extends EditorPane {
 			// Update navigation bar and context keys from model
 			this.updateNavigationState(navEvent);
 
+			// Restart console session on navigation to capture logs from the new page
 			if (navEvent.url) {
 				this.startConsoleSession();
 			} else {
@@ -434,6 +435,11 @@ export class BrowserEditor extends EditorPane {
 		this.layoutBrowserContainer();
 		this.updateVisibility();
 		this.doScreenshot();
+
+		// Start console log capture session if a URL is loaded
+		if (this._model.url) {
+			this.startConsoleSession();
+		}
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -717,6 +723,11 @@ export class BrowserEditor extends EditorPane {
 				value: value,
 				kind: 'element',
 				icon: ThemeIcon.fromId(Codicon.layout.id),
+				ancestors: elementData.ancestors,
+				attributes: elementData.attributes,
+				computedStyles: elementData.computedStyles,
+				dimensions: elementData.dimensions,
+				innerText: elementData.innerText,
 			});
 
 			// Attach screenshot if enabled
@@ -770,6 +781,9 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
+	/**
+	 * Grab the current console logs from the active console session and attach them to chat.
+	 */
 	async addConsoleLogsToChat(): Promise<void> {
 		const resourceUri = this.input?.resource;
 		if (!resourceUri) {
@@ -791,7 +805,7 @@ export class BrowserEditor extends EditorPane {
 				fullName: localize('consoleLogs', 'Console Logs'),
 				value: logs,
 				kind: 'element',
-				icon: ThemeIcon.fromId(Codicon.output.id),
+				icon: ThemeIcon.fromId(Codicon.terminal.id),
 			});
 
 			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
@@ -801,8 +815,11 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
+	/**
+	 * Start a console session to capture logs from the browser view.
+	 */
 	private startConsoleSession(): void {
-		// don't restart if already running
+		// Don't restart if already running
 		if (this._consoleSessionCts) {
 			return;
 		}
@@ -823,6 +840,9 @@ export class BrowserEditor extends EditorPane {
 		});
 	}
 
+	/**
+	 * Stop the active console session.
+	 */
 	private stopConsoleSession(): void {
 		if (this._consoleSessionCts) {
 			this._consoleSessionCts.dispose(true);
@@ -882,6 +902,8 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	private async doScreenshot(): Promise<void> {
+
+
 		if (!this._model) {
 			return;
 		}
