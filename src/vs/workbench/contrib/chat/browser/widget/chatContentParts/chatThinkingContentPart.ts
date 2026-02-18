@@ -116,7 +116,7 @@ const enum WorkingMessageCategory {
 	Tool = 'tool'
 }
 
-const thinkingMessages = [
+const defaultThinkingMessages = [
 	localize('chat.thinking.thinking.1', 'Thinking'),
 	localize('chat.thinking.thinking.2', 'Reasoning'),
 	localize('chat.thinking.thinking.3', 'Considering'),
@@ -181,18 +181,37 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private getRandomWorkingMessage(category: WorkingMessageCategory = WorkingMessageCategory.Tool): string {
 		let pool = this.availableMessagesByCategory.get(category);
 		if (!pool || pool.length === 0) {
+			let defaults: string[];
 			switch (category) {
 				case WorkingMessageCategory.Thinking:
-					pool = [...thinkingMessages];
+					defaults = [...defaultThinkingMessages];
 					break;
 				case WorkingMessageCategory.Terminal:
-					pool = [...terminalMessages];
+					defaults = [...terminalMessages];
 					break;
 				case WorkingMessageCategory.Tool:
 				default:
-					pool = [...toolMessages];
+					defaults = [...toolMessages];
 					break;
 			}
+
+			// Read configured phrases from the single setting
+			const config = this.configurationService.getValue<{ mode?: 'replace' | 'append'; phrases?: string[] }>(ChatConfiguration.ThinkingPhrases);
+			const customPhrases = config?.phrases ?? [];
+			const mode = config?.mode ?? 'append';
+
+			if (customPhrases.length > 0) {
+				if (mode === 'replace') {
+					// Replace mode: use only custom phrases for all categories
+					pool = [...customPhrases];
+				} else {
+					// Append mode: add custom phrases to defaults for this category
+					pool = [...defaults, ...customPhrases];
+				}
+			} else {
+				pool = defaults;
+			}
+
 			this.availableMessagesByCategory.set(category, pool);
 		}
 		const index = Math.floor(Math.random() * pool.length);
