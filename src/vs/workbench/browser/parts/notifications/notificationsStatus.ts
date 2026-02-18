@@ -9,6 +9,8 @@ import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecy
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from './notificationsCommands.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { LayoutSettings, NotificationsPosition } from '../../../services/layout/browser/layoutService.js';
 
 export class NotificationsStatus extends Disposable {
 
@@ -20,10 +22,13 @@ export class NotificationsStatus extends Disposable {
 	private isNotificationsCenterVisible: boolean = false;
 	private isNotificationsToastsVisible: boolean = false;
 
+	private currentAlignment: StatusbarAlignment | undefined;
+
 	constructor(
 		private readonly model: INotificationsModel,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -40,6 +45,27 @@ export class NotificationsStatus extends Disposable {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.model.onDidChangeStatusMessage(e => this.onDidChangeStatusMessage(e)));
 		this._register(this.notificationService.onDidChangeFilter(() => this.updateNotificationsCenterStatusItem()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LayoutSettings.NOTIFICATIONS_POSITION)) {
+				this.updateNotificationsCenterStatusItem();
+			}
+		}));
+	}
+
+	private getNotificationsPosition(): NotificationsPosition {
+		return this.configurationService.getValue<NotificationsPosition>(LayoutSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
+	}
+
+	private getDesiredAlignment(): StatusbarAlignment {
+		const position = this.getNotificationsPosition();
+		switch (position) {
+			case NotificationsPosition.BOTTOM_LEFT:
+				return StatusbarAlignment.LEFT;
+			case NotificationsPosition.TOP_RIGHT:
+			case NotificationsPosition.BOTTOM_RIGHT:
+			default:
+				return StatusbarAlignment.RIGHT;
+		}
 	}
 
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
@@ -92,12 +118,36 @@ export class NotificationsStatus extends Disposable {
 			};
 		}
 
+		// For top-right position, hide the status bar bell entirely
+		// (it is shown in the title bar instead via menu registration)
+		const position = this.getNotificationsPosition();
+		if (position === NotificationsPosition.TOP_RIGHT) {
+			if (this.notificationsCenterStatusItem) {
+				this.notificationsCenterStatusItem.dispose();
+				this.notificationsCenterStatusItem = undefined;
+				this.currentAlignment = undefined;
+			}
+			return;
+		}
+
+		const desiredAlignment = this.getDesiredAlignment();
+
+		// If alignment changed, dispose old entry and create a new one
+		if (this.notificationsCenterStatusItem && this.currentAlignment !== desiredAlignment) {
+			this.notificationsCenterStatusItem.dispose();
+			this.notificationsCenterStatusItem = undefined;
+		}
+
 		if (!this.notificationsCenterStatusItem) {
+			this.currentAlignment = desiredAlignment;
+			const priority = desiredAlignment === StatusbarAlignment.LEFT
+				? Number.MAX_SAFE_INTEGER /* leftmost on the left side (higher priority = further left) */
+				: Number.NEGATIVE_INFINITY /* rightmost on the right side */;
 			this.notificationsCenterStatusItem = this.statusbarService.addEntry(
 				statusProperties,
 				'status.notifications',
-				StatusbarAlignment.RIGHT,
-				Number.NEGATIVE_INFINITY /* last entry */
+				desiredAlignment,
+				priority
 			);
 		} else {
 			this.notificationsCenterStatusItem.update(statusProperties);

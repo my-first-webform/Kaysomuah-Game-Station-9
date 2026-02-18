@@ -19,6 +19,8 @@ import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExe
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -323,6 +325,21 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: TOGGLE_DO_NOT_DISTURB_MODE, title: localize2('toggleDoNotDisturbMode', 'Toggle Do Not Disturb Mode'), category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE, title: localize2('toggleDoNotDisturbModeBySource', 'Toggle Do Not Disturb Mode By Source...'), category } });
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: FOCUS_NOTIFICATION_TOAST, title: localize2('focusNotificationToasts', 'Focus Notification Toast'), category }, when: NotificationsToastsVisibleContext });
+
+	// Bell icon in the title bar (when notifications are positioned at top-right)
+	MenuRegistry.appendMenuItem(MenuId.TitleBar, {
+		command: {
+			id: TOGGLE_NOTIFICATIONS_CENTER,
+			title: localize('toggleNotifications', "Toggle Notifications"),
+			icon: Codicon.bell,
+		},
+		group: 'navigation',
+		order: 10000,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${LayoutSettings.NOTIFICATIONS_POSITION}`, 'top-right'),
+			ContextKeyExpr.equals(`config.${LayoutSettings.NOTIFICATIONS_BUTTON}`, true)
+		)
+	});
 }
 
 

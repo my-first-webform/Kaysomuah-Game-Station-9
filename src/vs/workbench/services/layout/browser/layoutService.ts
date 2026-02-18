@@ -48,7 +48,15 @@ export const enum LayoutSettings {
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
-	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled'
+	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
+	NOTIFICATIONS_POSITION = 'workbench.notifications.position',
+	NOTIFICATIONS_BUTTON = 'workbench.notifications.showInTitleBar'
+}
+
+export const enum NotificationsPosition {
+	BOTTOM_RIGHT = 'bottom-right',
+	BOTTOM_LEFT = 'bottom-left',
+	TOP_RIGHT = 'top-right'
 }
 
 export const enum ActivityBarPosition {

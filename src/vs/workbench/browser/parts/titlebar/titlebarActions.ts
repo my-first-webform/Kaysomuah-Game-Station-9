@@ -68,6 +68,12 @@ registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
 	}
 });
 
+registerAction2(class ToggleNotificationsButton extends ToggleTitleBarConfigAction {
+	constructor() {
+		super(LayoutSettings.NOTIFICATIONS_BUTTON, localize('toggle.notifications', 'Notifications'), localize('toggle.notificationsDescription', "Toggle visibility of the Notifications button in title bar"), 5, ContextKeyExpr.equals(`config.${LayoutSettings.NOTIFICATIONS_POSITION}`, 'top-right'));
+	}
+});
+
 registerAction2(class ToggleCustomTitleBar extends Action2 {
 	constructor() {
 		super({
