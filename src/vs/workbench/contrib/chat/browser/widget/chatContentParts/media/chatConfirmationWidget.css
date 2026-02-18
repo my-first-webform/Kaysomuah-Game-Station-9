@@ -83,10 +83,6 @@
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.monaco-button {
-	&:hover {
-		background: var(--vscode-toolbar-hoverBackground);
-	}
-
 	&:active {
 		background: var(--vscode-toolbar-activeBackground);
 	}
@@ -96,6 +92,21 @@
 		width: 100%;
 		text-align: left;
 		align-items: center;
+	}
+
+	.chat-collapsible-hover-chevron {
+		font-size: 12px;
+		opacity: 0;
+		transition: opacity 0.1s ease-in-out;
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.chat-collapsible-hover-chevron.codicon-chevron-down {
+		opacity: 1;
+	}
+
+	&:hover .chat-collapsible-hover-chevron {
+		opacity: 1;
 	}
 }
 
@@ -325,15 +336,11 @@
 
 			width: fit-content;
 			outline: none;
-			gap: 4px;
+			gap: 0;
 		}
 
 		.codicon {
 			font-size: 12px;
-		}
-
-		&:hover {
-			background: var(--vscode-list-hoverBackground);
 		}
 	}
 

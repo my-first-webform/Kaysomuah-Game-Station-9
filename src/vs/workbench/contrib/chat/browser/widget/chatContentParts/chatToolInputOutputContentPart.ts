@@ -26,8 +26,6 @@ import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
-import { renderFileWidgets } from './chatInlineAnchorWidget.js';
-import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
@@ -99,7 +97,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IHoverService hoverService: IHoverService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 
@@ -115,13 +112,16 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			title,
 			subtitle,
 		));
-		renderFileWidgets(titleEl.root, this._instantiationService, this.chatMarkdownAnchorService, this._store);
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
 		const btn = this._register(new ButtonWithIcon(elements.root, {}));
 		btn.element.classList.add('chat-confirmation-widget-title', 'monaco-text-button');
 		btn.labelElement.append(titleEl.root);
+
+		// Add hover chevron indicator on the right
+		const hoverChevron = dom.$('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right');
+		btn.element.appendChild(hoverChevron);
 
 		const check = dom.h(isError
 			? ThemeIcon.asCSSSelector(Codicon.error)
@@ -137,15 +137,22 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			}));
 		}
 
+		// Only show leading icon for errors
+		if (isError) {
+			btn.icon = Codicon.error;
+		} else {
+			btn.icon = Codicon.blank;
+			btn.iconElement.style.display = 'none';
+		}
+
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		this._register(autorun(r => {
 			const value = expanded.read(r);
-			btn.icon = isError
-				? Codicon.error
-				: output
-					? Codicon.check
-					: ThemeIcon.modify(Codicon.loading, 'spin');
 			elements.root.classList.toggle('collapsed', !value);
+
+			// Update hover chevron direction
+			hoverChevron.classList.toggle('codicon-chevron-right', !value);
+			hoverChevron.classList.toggle('codicon-chevron-down', value);
 
 			// Lazy initialization: render content only when expanded for the first time
 			if (value && !this._contentInitialized) {

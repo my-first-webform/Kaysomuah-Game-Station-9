@@ -932,7 +932,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .working-set-title {
 
 	.monaco-button {
-		padding: 4px 6px 4px 0px;
+		padding: 4px 6px 0 0;
 		border-radius: 2px;
 		border: none;
 		background-color: unset;
@@ -2181,7 +2181,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 	border: none;
 	border-radius: 4px;
-	gap: 4px;
+	gap: 0;
 	text-align: initial;
 	justify-content: initial;
 }
@@ -2197,6 +2197,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-used-context-label .monaco-button {
 	padding: 2px 6px 2px 2px;
+	margin-left: -2px;
 	font-size: var(--vscode-chat-font-size-body-s);
 	line-height: unset;
 }
@@ -2205,10 +2206,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.interactive-session .chat-used-context:not(.chat-used-context-collapsed) .chat-used-context-label .monaco-button,
 .interactive-session .chat-used-context-label .monaco-button:hover {
-	background-color: var(--vscode-list-hoverBackground);
 	color: var(--vscode-foreground);
-
 }
 
 .interactive-session .chat-file-changes-label .monaco-text-button:focus,
@@ -2225,6 +2225,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: 12px;
 	color: var(--vscode-icon-foreground) !important;
+}
+
+/* Hover chevron indicator for collapsible parts */
+.chat-collapsible-hover-chevron {
+	font-size: 12px;
+	opacity: 0;
+	transition: opacity 0.1s ease-in-out;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-collapsible-hover-chevron.codicon-chevron-down {
+	opacity: 1;
+}
+
+.interactive-session .chat-used-context-label .monaco-button:hover .chat-collapsible-hover-chevron {
+	opacity: 1;
+}
+
+/* Hide completion checkmark icon on tool invocation progress lines */
+.chat-tool-invocation-part .progress-container > .codicon-check {
+	display: none;
 }
 
 .interactive-item-container .progress-container {
