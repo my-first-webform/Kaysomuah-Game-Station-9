@@ -28,7 +28,7 @@ export class Query {
 			commands.push('category');
 		}
 
-		commands.push(...['tag', 'ext', 'id', 'outdated', 'recentlyUpdated']);
+		commands.push(...['tag', 'ext', 'id', 'outdated', 'recentlyUpdated', 'restartRequired']);
 		const sortCommands = [];
 		if (galleryManifest?.capabilities.extensionQuery?.sorting?.some(c => c.name === SortBy.InstallCount)) {
 			sortCommands.push('installs');

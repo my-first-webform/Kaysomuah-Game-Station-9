@@ -124,6 +124,8 @@ export interface IExtensionsNotification {
 	readonly message: string;
 	readonly severity: Severity;
 	readonly extensions: IExtension[];
+	readonly query?: string;
+	readonly action?: { readonly label: string; run(): void };
 	dismiss(): void;
 }
 
