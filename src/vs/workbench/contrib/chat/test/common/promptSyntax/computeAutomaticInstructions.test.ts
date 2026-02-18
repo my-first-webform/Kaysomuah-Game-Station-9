@@ -30,6 +30,7 @@ import { TestContextService, TestUserDataProfileService } from '../../../../../t
 import { ChatRequestVariableSet, isPromptFileVariableEntry, isPromptTextVariableEntry, toFileVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, getFilePath, InstructionsCollectionEvent } from '../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
+import { GeneralPurposeAgentName } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_RULES_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
@@ -1223,16 +1224,61 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(agentsList.length, 1, 'There should be one agents list');
 
 			const agents = xmlContents(agentsList[0], 'agent');
-			assert.equal(agents.length, 3, 'There should be three agents');
+			assert.equal(agents.length, 4, 'There should be four agents (General Purpose + 3 custom)');
 
-			assert.equal(xmlContents(agents[0], 'description')[0], 'Test agent 1');
-			assert.equal(xmlContents(agents[0], 'name')[0], `test-agent-1`);
+			// First agent should always be the built-in General Purpose agent
+			assert.equal(xmlContents(agents[0], 'name')[0], GeneralPurposeAgentName);
 
-			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 3');
-			assert.equal(xmlContents(agents[1], 'name')[0], `test-agent-3`);
+			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 1');
+			assert.equal(xmlContents(agents[1], 'name')[0], `test-agent-1`);
 
-			assert.equal(xmlContents(agents[2], 'description')[0], 'Test agent 5');
-			assert.equal(xmlContents(agents[2], 'name')[0], `test-agent-5`);
+			assert.equal(xmlContents(agents[2], 'description')[0], 'Test agent 3');
+			assert.equal(xmlContents(agents[2], 'name')[0], `test-agent-3`);
+
+			assert.equal(xmlContents(agents[3], 'description')[0], 'Test agent 5');
+			assert.equal(xmlContents(agents[3], 'name')[0], `test-agent-5`);
+		});
+
+		test('should include only General Purpose agent when custom agents config is disabled', async () => {
+			const rootFolderName = 'agents-list-disabled-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Config for custom agents is NOT enabled (default is false)
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/test-agent-1.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 1\'',
+						'---',
+						'Test agent content',
+					]
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_runSubagent': true },
+				['*']
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const textVariables = variables.asArray().filter(v => isPromptTextVariableEntry(v));
+			assert.equal(textVariables.length, 1, 'There should be one text variable for agents list');
+
+			const agentsList = xmlContents(textVariables[0].value, 'agents');
+			assert.equal(agentsList.length, 1, 'There should be one agents list');
+
+			const agents = xmlContents(agentsList[0], 'agent');
+			assert.equal(agents.length, 1, 'There should be only the General Purpose agent');
+			assert.equal(xmlContents(agents[0], 'name')[0], GeneralPurposeAgentName);
 		});
 
 		test('should include skills list when readFile tool available', async () => {
